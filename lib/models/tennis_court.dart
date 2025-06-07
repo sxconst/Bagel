@@ -60,7 +60,7 @@ class TennisCourt {
   static CourtStatus _getStatusFromData(int inUse, int total, int timeSinceLastUpdate) {
     if (timeSinceLastUpdate == -1) return CourtStatus.noRecentReport;
 
-    if (timeSinceLastUpdate > 90) return CourtStatus.noRecentReport;
+    if (timeSinceLastUpdate > 60) return CourtStatus.noRecentReport;
 
     if (inUse == 0) return CourtStatus.empty;
     if (inUse == total) return CourtStatus.full;
