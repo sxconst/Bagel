@@ -215,37 +215,32 @@ class ApiService {
     ];
   }
 
-  static Future<Map<String, dynamic>> getUserData() async {
-    // This could also be moved to Supabase with user authentication
-    await Future.delayed(const Duration(milliseconds: 300));
-    return {
-      'tokens': 1250,
-      'email': 'user@example.com',
-    };
-  }
-
-  static Future<bool> signUp({
+  static Future<(bool, User?)> signUp({
   required String email,
   required String password,
+  required String username,
   }) async {
     try {
       final authResponse = await _supabase.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'username': username,
+        },
       );
       final user = authResponse.user;
       if (user == null) {
         debugPrint('Sign-up failed: user is null');
-        return false;
+        return (false, null);
       }
-      return true;
+      return (true, user);
     } catch (error) {
       debugPrint('Error signing up: $error');
-      return false;
+      return (false, null);
     }
   }
 
-  static Future<bool> signIn({
+  static Future<(bool, String?)> signIn({
     required String email,
     required String password,
   }) async {
@@ -255,10 +250,10 @@ class ApiService {
         password: password,
       );
       final user = authResponse.user;
-      return user != null;
+      return (user != null, null);
     } catch (error) {
       debugPrint('Error signing in: $error');
-      return false;
+      return (false, error.toString());
     }
   }
 
@@ -280,22 +275,40 @@ class ApiService {
     }
   }
 
+  static Future<bool> resendVerification(String email) async {
+    try {
+      await _supabase.auth.resend(email: email, type: OtpType.signup);
+      return true;
+    } catch (error) {
+      debugPrint('Error resending verification email: $error');
+      return false;
+    }
+  }
+
   static User? get currentUser => _supabase.auth.currentUser;
 
   static Future<void> upsertUserProfile({
     required String userId,
     String? email,
     double? lastLat,
-    double? lastLng,
+    double? lastLon,
+    String? username,
+    int? tokens,
+    int? reports,
   }) async {
     try {
       // We use upsert to only change the fields provided.
       final updates = <String, dynamic>{'id': userId};
       if (email != null) updates['email'] = email;
       if (lastLat != null) updates['last_lat'] = lastLat;
-      if (lastLng != null) updates['last_lng'] = lastLng;
+      if (lastLon != null) updates['last_lon'] = lastLon;
+      if (username != null) updates['username'] = username;
+      if (tokens != null) updates['tokens'] = tokens;
+      if (reports != null) updates['reports'] = reports;
       updates['updated_at'] = DateTime.now().toUtc().toIso8601String();
-
+      
+      debugPrint('api_service upsert operation: $updates');
+      
       await _supabase.from(profilesTable).upsert(updates);
     } catch (error) {
       debugPrint('Error upserting profile: $error');
@@ -307,7 +320,7 @@ class ApiService {
     try {
       final result = await _supabase
           .from(profilesTable)
-          .select('id, email, last_lat, last_lng')
+          .select('id, email, last_lat, last_lng, reports, tokens, username')
           .eq('id', userId)
           .single();
       return result as Map<String, dynamic>?;
@@ -316,5 +329,4 @@ class ApiService {
       return null;
     }
   }
-
 }

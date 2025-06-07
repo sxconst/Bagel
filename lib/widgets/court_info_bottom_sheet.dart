@@ -4,6 +4,7 @@ import '../models/tennis_court.dart';
 import '../providers/courts_provider.dart';
 import '../providers/user_provider.dart';
 import '../auth/auth_guard.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CourtInfoBottomSheet extends StatefulWidget {
   final TennisCourt court;
@@ -65,7 +66,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Earn 150 tokens for helping keep court info updated!',
+                    'Earn 100 tokens for helping keep court info updated!',
                     style: TextStyle(
                       color: Colors.green[700],
                       fontWeight: FontWeight.w500,
@@ -124,7 +125,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                   const Icon(Icons.update, size: 20),
                   const SizedBox(width: 8),
                   const Text(
-                    'Update & Earn 150 Tokens',
+                    'Update & Earn 100 Tokens',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -169,7 +170,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
     await AuthGuard.protectAsync(
       context,
       () => _performCourtUpdate(),
-      message: 'Sign in to update courts and earn 150 tokens!',
+      message: 'Sign in to update courts and earn 100 tokens!',
     );
   }
 
@@ -198,7 +199,8 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
 
       // Perform the update
       await courtsProvider.updateCourtUsage(widget.court.clusterId, _selectedCourtsInUse);
-      userProvider.addTokens(150);
+      await userProvider.addTokens(Supabase.instance.client.auth.currentUser?.id, 100);
+      await userProvider.updateNumReports(Supabase.instance.client.auth.currentUser?.id);
 
       if (mounted) {
         Navigator.pop(context);
@@ -225,7 +227,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                       Icon(Icons.stars, color: Colors.white, size: 16),
                       const SizedBox(width: 4),
                       const Text(
-                        '+150',
+                        '+100',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],

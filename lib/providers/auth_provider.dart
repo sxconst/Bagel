@@ -14,11 +14,11 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final success = await ApiService.signIn(email: email, password: password);
-      _isAuthenticated = success;
+      _isAuthenticated = success.$1;
       
       _isLoading = false;
       notifyListeners();
-      return success;
+      return _isAuthenticated;
     } catch (e) {
       _isLoading = false;
       notifyListeners();

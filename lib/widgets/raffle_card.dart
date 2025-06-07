@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/raffle.dart';
 import '../providers/rewards_provider.dart';
 import '../providers/user_provider.dart';
@@ -38,7 +39,7 @@ class _RaffleCardState extends State<RaffleCard> {
 
     // 5) If the raffle entry succeeded, spend tokens and show the SnackBar.
     if (success) {
-      userProvider.spendTokens(widget.raffle.tokensRequired);
+      userProvider.spendTokens(Supabase.instance.client.auth.currentUser?.id, widget.raffle.tokensRequired);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully entered raffle!')),
       );

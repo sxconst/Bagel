@@ -9,6 +9,7 @@ import '../providers/courts_provider.dart';
 import '../widgets/court_info_bottom_sheet.dart';
 import '../models/tennis_court.dart';
 import '../services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -20,6 +21,7 @@ class MapsScreen extends StatefulWidget {
 class _MapsScreenState extends State<MapsScreen> {
   GoogleMapController? _mapController;
   LatLng? _userLocation;
+  bool _isLocationLoaded = false; // Add this flag
   final Map<String, BitmapDescriptor> _markerCache = {};
   
   double _currentZoom = 12.0;
@@ -32,7 +34,38 @@ class _MapsScreenState extends State<MapsScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeUserLocation();
     _initializeLocation();
+  }
+
+  Future<void> _initializeUserLocation() async {
+    try {
+      final profile = await ApiService.fetchUserProfile(
+        Supabase.instance.client.auth.currentUser?.id ?? ''
+      );
+      
+      if (profile == null) {
+        debugPrint('No user profile found, using default location');
+        _userLocation = LatLng(37.7749, -122.4194); // Default to San Francisco
+      } else {
+        _userLocation = LatLng(
+          profile["lastLat"] ?? 37.7749,
+          profile["lastLon"] ?? -122.4194,
+        );
+        debugPrint('Loaded user location from profile: ${_userLocation?.latitude}, ${_userLocation?.longitude}');
+      }
+      
+      setState(() {
+        _isLocationLoaded = true; // Set flag when location is ready
+      });
+    } catch (e) {
+      debugPrint('Error loading user profile: $e');
+      // Fall back to default location on error
+      _userLocation = LatLng(37.7749, -122.4194);
+      setState(() {
+        _isLocationLoaded = true;
+      });
+    }
   }
 
   Future<void> _initializeLocation() async {
@@ -72,13 +105,24 @@ class _MapsScreenState extends State<MapsScreen> {
         _userLocation = LatLng(position.latitude, position.longitude);
       });
 
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await ApiService.upsertUserProfile(
+          userId: user.id,
+          lastLat: position.latitude,
+          lastLon: position.longitude,
+          username: null,
+          tokens: null,
+        );
+      }
+
       if (_mapController != null && _userLocation != null) {
         await _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(_userLocation!, 15),
         );
       }
 
-      debugPrint('User location: ${position.latitude}, ${position.longitude}');
+      debugPrint('User location updated: ${position.latitude}, ${position.longitude}');
     } catch (e) {
       debugPrint('Error getting location: $e');
     }
@@ -343,31 +387,42 @@ class _MapsScreenState extends State<MapsScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          GoogleMap(
-            onMapCreated: (controller) {
-              setState(() => _mapController = controller);
-              debugPrint('Map controller created');
-              _loadCourtsInViewport();
-            },
-            initialCameraPosition: CameraPosition(
-              target: _userLocation ?? const LatLng(37.7749, -122.4194),
-              zoom: _currentZoom,
+      body: !_isLocationLoaded || _userLocation == null
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading your location...'),
+                ],
+              ),
+            )
+          : Stack(
+              children: [
+                GoogleMap(
+                  onMapCreated: (controller) {
+                    setState(() => _mapController = controller);
+                    debugPrint('Map controller created with location: ${_userLocation!.latitude}, ${_userLocation!.longitude}');
+                    _loadCourtsInViewport();
+                  },
+                  initialCameraPosition: CameraPosition(
+                    target: _userLocation!,
+                    zoom: _currentZoom,
+                  ),
+                  markers: _viewportMarkers,
+                  onCameraIdle: () {
+                    debugPrint('Camera stopped moving, loading new markers');
+                    _loadCourtsInViewport();
+                  },
+                  onCameraMove: (position) {
+                    _currentZoom = position.zoom;
+                  },
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                ),
+              ],
             ),
-            markers: _viewportMarkers,
-            onCameraIdle: () {
-              debugPrint('Camera stopped moving, loading new markers');
-              _loadCourtsInViewport();
-            },
-            onCameraMove: (position) {
-              _currentZoom = position.zoom;
-            },
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-          ),
-        ],
-      ),
     );
   }
 }

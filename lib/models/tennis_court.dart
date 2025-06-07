@@ -36,23 +36,29 @@ class TennisCourt {
         ? DateTime.now().toUtc().difference(lastUpdated).inMinutes
         : -1;
 
+    final status = _getStatusFromData(
+      json['courts_in_use'] ?? 0,
+      json['total_courts'],
+      timeSinceLastUpdate,
+    );
+
+    final courtsInUse = status == CourtStatus.noRecentReport
+        ? 0
+        : (json['courts_in_use'] as int? ?? 0);
+
     return TennisCourt(
       clusterId: json['cluster_id'],
       lat: json['lat'].toDouble(),
       lon: json['lon'].toDouble(),
       totalCourts: json['total_courts'] as int,
-      courtsInUse: json['courts_in_use'] as int,
+      courtsInUse: courtsInUse,
       access: json['access'] as String,
       surface: json['surface'] as String,
       lights: json['lights'] ?? false,
       name: json['name'] as String,
       lastUpdated: lastUpdated,
       timeSinceLastUpdate: timeSinceLastUpdate,
-      status: _getStatusFromData(
-        json['courts_in_use'] ?? 0,
-        json['total_courts'],
-        timeSinceLastUpdate,
-      ),
+      status: status,
 
     );
   }
