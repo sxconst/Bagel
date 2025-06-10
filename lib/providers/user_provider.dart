@@ -13,9 +13,9 @@ class UserProvider with ChangeNotifier {
   Future<void> loadUserData(String userID) async {
     try {
       final userData = await ApiService.fetchUserProfile(userID);
-      _tokens = userData?['tokens'] ?? 0;
-      _email = userData?['email'] ?? '';
-      _reports = userData?['reports'] ?? 0;
+      _tokens = userData?['tokens'];
+      _email = userData?['email'];
+      _reports = userData?['reports'];
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading user data: $e');
@@ -30,7 +30,7 @@ class UserProvider with ChangeNotifier {
         lastLat: null,
         lastLon: null,
         username: null,
-        tokens: _tokens + amount,
+        tokens: _tokens,
       );
       notifyListeners();
     }
@@ -44,7 +44,7 @@ class UserProvider with ChangeNotifier {
         lastLat: null,
         lastLon: null,
         username: null,
-        tokens: _tokens - amount,
+        tokens: _tokens,
       );
       notifyListeners();
     }
@@ -59,7 +59,7 @@ class UserProvider with ChangeNotifier {
         lastLon: null,
         username: null,
         tokens: null,
-        reports: _reports + 1,
+        reports: _reports,
       );
       notifyListeners();
     }

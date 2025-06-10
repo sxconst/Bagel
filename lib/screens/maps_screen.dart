@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'package:bagel/providers/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -10,6 +11,7 @@ import '../widgets/court_info_bottom_sheet.dart';
 import '../models/tennis_court.dart';
 import '../services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -34,11 +36,11 @@ class _MapsScreenState extends State<MapsScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeUserLocation();
+    _initializeUser();
     _initializeLocation();
   }
 
-  Future<void> _initializeUserLocation() async {
+  Future<void> _initializeUser() async {
     try {
       final profile = await ApiService.fetchUserProfile(
         Supabase.instance.client.auth.currentUser?.id ?? ''
@@ -49,10 +51,13 @@ class _MapsScreenState extends State<MapsScreen> {
         _userLocation = LatLng(37.7749, -122.4194); // Default to San Francisco
       } else {
         _userLocation = LatLng(
-          profile["lastLat"] ?? 37.7749,
-          profile["lastLon"] ?? -122.4194,
+          profile["last_lat"] ?? 37.7749,
+          profile["last_lon"] ?? -122.4194,
         );
         debugPrint('Loaded user location from profile: ${_userLocation?.latitude}, ${_userLocation?.longitude}');
+        // ignore: use_build_context_synchronously
+        final UserProvider userDataLoader = Provider.of<UserProvider>(context, listen: false);
+        userDataLoader.loadUserData(profile["id"]);
       }
       
       setState(() {
@@ -350,13 +355,14 @@ class _MapsScreenState extends State<MapsScreen> {
           status: court.status,
         );
 
+        // Add onTap handler that finds the nearest court to the marker position
         markers.add(
           Marker(
             markerId: MarkerId('court_${court.clusterId}'),
             position: LatLng(court.lat, court.lon),
             icon: markerIcon,
-            onTap: () => _showCourtInfo(court),
-            anchor: const Offset(0.5, 0.5), // Center anchor for circular markers
+            anchor: const Offset(0.5, 0.5),
+            onTap: () => _handleMarkerTap(LatLng(court.lat, court.lon)),
           ),
         );
       } catch (e) {
@@ -368,34 +374,154 @@ class _MapsScreenState extends State<MapsScreen> {
     return markers;
   }
 
+    // Handle marker taps by finding the closest court to the marker position
+  Future<void> _handleMarkerTap(LatLng markerPosition) async {
+    debugPrint('=== MARKER TAP DETECTED ===');
+    debugPrint('Marker position: ${markerPosition.latitude}, ${markerPosition.longitude}');
+    
+    if (_mapController == null) {
+      debugPrint('Map controller is null');
+      return;
+    }
+
+    const double maxDistanceMeters = 10.0; // Very small distance for exact matches
+    
+    try {
+      // Get current viewport bounds to only check visible courts
+      final bounds = await _mapController!.getVisibleRegion();
+      final visibleCourts = _getCourtsInBounds(bounds);
+      debugPrint('Checking ${visibleCourts.length} visible courts');
+      
+      TennisCourt? exactMatch;
+      double nearestDistance = double.infinity;
+      
+      // Find the court that exactly matches this marker position
+      for (final court in visibleCourts) {
+        final distance = Geolocator.distanceBetween(
+          markerPosition.latitude,
+          markerPosition.longitude,
+          court.lat,
+          court.lon,
+        );
+        
+        if (distance <= maxDistanceMeters && distance < nearestDistance) {
+          nearestDistance = distance;
+          exactMatch = court;
+        }
+      }
+      
+      if (exactMatch != null) {
+        _showCourtInfo(exactMatch);
+      } else {
+        // Fallback: just use the first court in the list as this shouldn't happen
+        if (visibleCourts.isNotEmpty) {
+          _showCourtInfo(visibleCourts.first);
+        }
+      }
+      
+    } catch (e) {
+      debugPrint('Error in marker tap handling: $e');
+    }
+  }
+
   void _showCourtInfo(TennisCourt court) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => CourtInfoBottomSheet(court: court),
+      builder: (context) => CourtInfoBottomSheet(
+      court: court,
+      onCourtUpdated: () {
+        _loadCourts();
+      },
+    ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
       appBar: AppBar(
-        title: const Text('Tennis Courts'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 56, // Standard height for better proportion
+        title: null,
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadCourts,
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _loadCourts();
+                },
+                borderRadius: BorderRadius.circular(12),
+                splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.refresh_rounded,
+                    color: Color(0xFF3B82F6),
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
       body: !_isLocationLoaded || _userLocation == null
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading your location...'),
-                ],
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.green.withValues(alpha: 0.05),
+                    Colors.white,
+                  ],
+                ),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                      strokeWidth: 3,
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      'Loading your location...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : Stack(
@@ -420,6 +546,27 @@ class _MapsScreenState extends State<MapsScreen> {
                   },
                   myLocationEnabled: true,
                   myLocationButtonEnabled: true,
+                  style: '''
+                    [
+                      {
+                        "featureType": "poi",
+                        "elementType": "labels.icon",
+                        "stylers": [
+                          {
+                            "visibility": "off"
+                          }
+                        ]
+                      },
+                      {
+                        "featureType": "poi.business",
+                        "stylers": [
+                          {
+                            "visibility": "off"
+                          }
+                        ]
+                      }
+                    ]
+                  ''',
                 ),
               ],
             ),

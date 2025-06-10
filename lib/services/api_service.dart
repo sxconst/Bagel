@@ -150,11 +150,38 @@ class ApiService {
   /// Updates court usage information
   static Future<void> updateCourtUsage(String courtId, int courtsInUse) async {
     try {
+      // First get the username of the user who reported
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      final userProfile = await _supabase
+          .from(profilesTable)
+          .select('username')
+          .eq('id', user.id)
+          .single();
+      final username = userProfile['username'] as String;
+      debugPrint(username);
+
+      // Get the current num_reports value
+      final currentData = await _supabase
+          .from(courtsTable)
+          .select('num_reports')
+          .eq('cluster_id', courtId)
+          .single();
+      debugPrint(currentData.toString());
+      
+      final currentReports = currentData['num_reports'];
+      final newReports = currentReports + 1;
+      
+      // Update with incremented value
       await _supabase
           .from(courtsTable)
           .update({
             'courts_in_use': courtsInUse,
             'last_updated': DateTime.now().toUtc().toIso8601String(),
+            'num_reports': newReports,
+            'last_updated_by': username,
           })
           .eq('cluster_id', courtId);
     } catch (error) {
@@ -320,13 +347,38 @@ class ApiService {
     try {
       final result = await _supabase
           .from(profilesTable)
-          .select('id, email, last_lat, last_lng, reports, tokens, username')
+          .select('id, email, last_lat, last_lon, reports, tokens, username')
           .eq('id', userId)
           .single();
       return result as Map<String, dynamic>?;
     } catch (error) {
       debugPrint('Error fetching profile for $userId: $error');
       return null;
+    }
+  }
+
+  static Future<void> upsertCourtDetails({
+    required String courtID,
+    String? name,
+    String? access,
+    String? surface,
+    String? lights,
+  }) async {
+    try {
+      // We use upsert to only change the fields provided.
+      final updates = <String, dynamic>{'id': courtID};
+      if (name != null) updates['name'] = name;
+      if (access != null) updates['access'] = access;
+      if (surface != null) updates['surface'] = surface;
+      if (lights != null) updates['lights'] = lights;
+      updates['updated_at'] = DateTime.now().toUtc().toIso8601String();
+      
+      debugPrint('api_service upsert court details operation: $updates');
+
+      await _supabase.from(courtsTable).upsert(updates);
+    } catch (error) {
+      debugPrint('Error upserting court details: $error');
+      rethrow;
     }
   }
 }

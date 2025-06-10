@@ -36,8 +36,9 @@ class CourtsProvider with ChangeNotifier {
       // Update local data
       final courtIndex = _courts.indexWhere((court) => court.clusterId == courtId);
       if (courtIndex != -1) {
-        await loadCourts(); // Reload for now
-      }
+        await loadCourts();
+      }    
+
     } catch (e) {
       debugPrint('Error updating court usage: $e');
     }

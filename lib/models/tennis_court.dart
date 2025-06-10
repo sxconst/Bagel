@@ -11,6 +11,7 @@ class TennisCourt {
   final DateTime? lastUpdated;
   final int timeSinceLastUpdate;
   final CourtStatus status;
+  final String? lastUpdatedBy;
 
   TennisCourt({
     required this.clusterId,
@@ -25,6 +26,7 @@ class TennisCourt {
     this.lastUpdated,
     required this.timeSinceLastUpdate,
     required this.status,
+    this.lastUpdatedBy,
   });
 
   factory TennisCourt.fromJson(Map<String, dynamic> json) {
@@ -59,7 +61,7 @@ class TennisCourt {
       lastUpdated: lastUpdated,
       timeSinceLastUpdate: timeSinceLastUpdate,
       status: status,
-
+      lastUpdatedBy: json['last_updated_by'] as String?,
     );
   }
 

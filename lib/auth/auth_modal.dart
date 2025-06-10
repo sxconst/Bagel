@@ -186,7 +186,7 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
