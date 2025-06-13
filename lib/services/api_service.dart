@@ -54,11 +54,14 @@ class ApiService {
 
   /// Calculate how many courts to show based on zoom level
   static int _calculateLimitByZoom(double zoomLevel) {
-    if (zoomLevel < 10) return 20;      // City level - very few courts
-    if (zoomLevel < 12) return 50;      // District level
-    if (zoomLevel < 14) return 100;     // Neighborhood level
-    if (zoomLevel < 16) return 200;     // Street level
-    return 500;                         // Very close zoom - show more
+    if (zoomLevel == -1) return 100000; // Used for caching
+    if (zoomLevel < 6) return 25;       // Country level
+    if (zoomLevel < 8) return 50;       // State level
+    if (zoomLevel < 10) return 100;     // Regional level
+    if (zoomLevel < 12) return 200;     // City level
+    if (zoomLevel < 15) return 500;     // Neighborhood level
+    if (zoomLevel < 20) return 1000;    // Street level - show all
+    return 3000;                        // Very far out zoom - show more
   }
 
   /// Get courts with clustering for low zoom levels
@@ -322,6 +325,7 @@ class ApiService {
     String? username,
     int? tokens,
     int? reports,
+    int? courtDetailsUpdated,
   }) async {
     try {
       // We use upsert to only change the fields provided.
@@ -332,6 +336,9 @@ class ApiService {
       if (username != null) updates['username'] = username;
       if (tokens != null) updates['tokens'] = tokens;
       if (reports != null) updates['reports'] = reports;
+      if (courtDetailsUpdated != null) {
+        updates['court_details_updated'] = courtDetailsUpdated;
+      }
       updates['updated_at'] = DateTime.now().toUtc().toIso8601String();
       
       debugPrint('api_service upsert operation: $updates');
@@ -357,28 +364,45 @@ class ApiService {
     }
   }
 
-  static Future<void> upsertCourtDetails({
-    required String courtID,
+  /// Updates court usage information
+  static Future<void> updateCourtDetails({
+    required String courtId,
+    required String userId,
     String? name,
     String? access,
     String? surface,
     String? lights,
   }) async {
     try {
-      // We use upsert to only change the fields provided.
-      final updates = <String, dynamic>{'id': courtID};
-      if (name != null) updates['name'] = name;
-      if (access != null) updates['access'] = access;
-      if (surface != null) updates['surface'] = surface;
-      if (lights != null) updates['lights'] = lights;
-      updates['updated_at'] = DateTime.now().toUtc().toIso8601String();
-      
-      debugPrint('api_service upsert court details operation: $updates');
+      // Update the court details with the provided values
+      await _supabase
+          .from(courtsTable)
+          .update({
+            'name': name,
+            'access': access,
+            'surface': surface,
+            'lights': lights == 'Available' ? true : false,
+          })
+          .eq('cluster_id', courtId);
 
-      await _supabase.from(courtsTable).upsert(updates);
+      // Get the users current court_details_updated count and increment it
+      final currentData = await _supabase
+          .from(profilesTable)
+          .select('court_details_updated')
+          .eq('id', userId)
+          .single();
+
+      final currentDetails = currentData['court_details_updated'];
+      final newDetails = currentDetails + 1;
+
+      await upsertUserProfile(
+        userId: userId,
+        courtDetailsUpdated: newDetails,
+      );
+
     } catch (error) {
-      debugPrint('Error upserting court details: $error');
-      rethrow;
+      debugPrint('Error updating court usage: $error');
+      throw Exception('Failed to update court usage');
     }
   }
 }

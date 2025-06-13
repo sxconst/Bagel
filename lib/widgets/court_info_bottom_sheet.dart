@@ -5,6 +5,7 @@ import '../providers/courts_provider.dart';
 import '../providers/user_provider.dart';
 import '../auth/auth_guard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/api_service.dart';
 
 class CourtInfoBottomSheet extends StatefulWidget {
   final TennisCourt court;
@@ -56,19 +57,33 @@ String _mapSurfaceValue(String surface) {
   }
 }
 
-class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
+class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with TickerProviderStateMixin {
   int _selectedCourtsInUse = 0;
   OverlayEntry? _tooltipOverlay;
+  bool _isUpdating = false;
+  late AnimationController _scaleController;
+  late AnimationController _rippleController;
+  int? _lastTappedIndex;
 
   @override
   void initState() {
     super.initState();
     _selectedCourtsInUse = widget.court.courtsInUse;
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _rippleController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
   }
 
   @override
   void dispose() {
     _hideTooltip();
+    _scaleController.dispose();
+    _rippleController.dispose();
     super.dispose();
   }
 
@@ -153,7 +168,15 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          // TODO: Push court details edits to database
+                          ApiService.updateCourtDetails(
+                            courtId: widget.court.clusterId,
+                            userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+                            name: nameController.text.trim(),
+                            access: selectedAccess.toLowerCase(),
+                            surface: selectedSurface.toLowerCase(),
+                            lights: selectedLights == 'Available' ? 'Available' : 'Unavailable',
+                          );
+                          widget.onCourtUpdated?.call();
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -409,6 +432,190 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
     );
   }
 
+  Color _getPrimaryColorForValue(int value, int totalCourts) {
+    if (_isUpdating && _lastTappedIndex == value) {
+      // Use the color for the selected value, regardless of court.status
+      if (value == 0) return const Color(0xFF22C55E);
+      if (value == totalCourts) return const Color(0xFFDC2626);
+      return const Color(0xFFEAB308);
+    }
+
+    // Default fallback to court status logic
+    if (widget.court.status == CourtStatus.noRecentReport) {
+      return const Color(0xFF8B8D98); // Neutral gray
+    } else if (value == 0) {
+      return const Color(0xFF22C55E); // Green
+    } else if (value == totalCourts) {
+      return const Color(0xFFDC2626); // Red
+    } else {
+      return const Color(0xFFEAB308); // Yellow
+    }
+  }
+
+  Color _getGlowColorForValue(int value, int totalCourts) {
+    final baseColor = _getPrimaryColorForValue(value, totalCourts);
+    return baseColor.withValues(alpha: 0.3);
+  }
+
+  Widget _buildPremiumUsageButton(int index) {
+  final isSelected = _selectedCourtsInUse == index;
+  final isUpdating = _isUpdating && _lastTappedIndex == index;
+  
+  // Use colors based on this specific button's value, not the overall court status
+  final primaryColor = _getPrimaryColorForValue(index, widget.court.totalCourts);
+  final glowColor = _getGlowColorForValue(index, widget.court.totalCourts);
+  
+  return Expanded(
+    child: GestureDetector(
+      onTapDown: (_) {
+        _scaleController.forward();
+      },
+      onTapUp: (_) {
+        _scaleController.reverse();
+      },
+      onTapCancel: () {
+        _scaleController.reverse();
+      },
+      onTap: () => _handleUsageButtonTap(index),
+      child: AnimatedBuilder(
+        animation: _scaleController,
+        builder: (context, child) {
+          final scale = 1.0 - (_scaleController.value * 0.05);
+          return Transform.scale(
+            scale: scale,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? LinearGradient(
+                        colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      )
+                    : LinearGradient(
+                        colors: [Colors.white, Colors.grey[50]!],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected 
+                      ? primaryColor 
+                      : Colors.grey[300]!,
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: [
+                  if (isSelected) ...[
+                    BoxShadow(
+                      color: glowColor,
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: glowColor.withValues(alpha: 0.1),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ] else ...[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Ripple effect
+                  if (isUpdating)
+                    AnimatedBuilder(
+                      animation: _rippleController,
+                      builder: (context, child) {
+                        return Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: _rippleController.value * 1.5,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.6),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  // Main content
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isUpdating) ...[
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isSelected ? Colors.white : primaryColor,
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            '$index',
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.grey[800],
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              shadows: isSelected ? [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  offset: const Offset(0, 1),
+                                  blurRadius: 2,
+                                ),
+                              ] : null,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          if (isSelected)
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+  void _handleUsageButtonTap(int index) async {
+    if (_isUpdating || index == _selectedCourtsInUse) return;
+    
+    await AuthGuard.protectAsync(
+      context,
+      () => _performCourtUpdate(index),
+      message: 'Sign in to update courts and earn 100 tokens!',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accessKey = GlobalKey();
@@ -417,7 +624,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85, // Reduced from 0.9
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -439,7 +646,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
           
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Reduced top padding
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -451,7 +658,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                         child: Text(
                           widget.court.name,
                           style: const TextStyle(
-                            fontSize: 22, // Increased from 20
+                            fontSize: 22,
                             fontWeight: FontWeight.w600,
                             color: Colors.black,
                           ),
@@ -459,7 +666,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                       ),
                       const SizedBox(width: 12),
                       
-                      // Directions button (smaller)
+                      // Directions button
                       ElevatedButton.icon(
                         onPressed: _openDirections,
                         icon: const Icon(Icons.directions_outlined, size: 16),
@@ -481,7 +688,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                     ],
                   ),
                   
-                  const SizedBox(height: 12), // Reduced from 16
+                  const SizedBox(height: 12),
                   
                   // Court detail icons and edit button row
                   Row(
@@ -546,11 +753,11 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                       
                       const SizedBox(width: 12),
                       
-                      // Edit button (larger and positioned across from icons)
+                      // Edit button
                       ElevatedButton.icon(
                         onPressed: _showEditDialog,
                         icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('Edit & Earn'),
+                        label: const Text('Update Info'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[100],
                           foregroundColor: Colors.grey[700],
@@ -570,76 +777,6 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                   
                   const SizedBox(height: 20),
                   
-                  // Court stats
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                '${widget.court.totalCourts}',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const Text(
-                                'Total Courts',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                '${widget.court.courtsInUse}',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const Text(
-                                'In Use',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-
-                  
                   Text(
                     widget.court.status == CourtStatus.noRecentReport
                         ? 'No report in the last 60 minutes'
@@ -650,81 +787,32 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                     ),
                   ),
                   
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   
                   const Text(
-                    'Update court usage:',
+                    'How many courts are in use?',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Colors.black,
                     ),
                   ),
                   
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   
-                  // Usage selector
+                  // Premium usage selector
                   Row(
                     children: List.generate(widget.court.totalCourts + 1, (index) {
-                      final isSelected = _selectedCourtsInUse == index;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedCourtsInUse = index),
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF007AFF) : Colors.grey[100],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected ? const Color(0xFF007AFF) : Colors.grey[300]!,
-                              ),
-                            ),
-                            child: Text(
-                              '$index',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
+                      return _buildPremiumUsageButton(index);
                     }),
                   ),
                   
-                  const SizedBox(height: 20),
-                  
-                  // Update button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _handleUpdateCourtUsage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF007AFF),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Update & Earn 100 Tokens',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                   
                   // Sign-in hint
                   if (!AuthGuard.isSignedIn) ...[
-                    const SizedBox(height: 12),
                     Text(
-                      'Sign in to earn tokens and track your contributions',
+                      'Sign in to update courts and earn 100 tokens per report',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -741,20 +829,22 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
     );
   }
 
-  void _handleUpdateCourtUsage() async {
-    await AuthGuard.protectAsync(
-      context,
-      () => _performCourtUpdate(),
-      message: 'Sign in to update courts and earn 100 tokens!',
-    );
-  }
+  Future<void> _performCourtUpdate(int newUsageCount) async {
+    setState(() {
+      _isUpdating = true;
+      _lastTappedIndex = newUsageCount;
+      _selectedCourtsInUse = newUsageCount;
+    });
 
-  Future<void> _performCourtUpdate() async {
+    _rippleController.forward().then((_) {
+      _rippleController.reset();
+    });
+
     final courtsProvider = Provider.of<CourtsProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
     try {
-      await courtsProvider.updateCourtUsage(widget.court.clusterId, _selectedCourtsInUse);
+      await courtsProvider.updateCourtUsage(widget.court.clusterId, newUsageCount);
       await userProvider.addTokens(Supabase.instance.client.auth.currentUser?.id, 100);
       await userProvider.updateNumReports(Supabase.instance.client.auth.currentUser?.id);
 
@@ -790,15 +880,19 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
                 ),
               ],
             ),
-            backgroundColor: Color(0xFF007AFF),
+            backgroundColor: const Color(0xFF007AFF),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
         );
-        widget.onCourtUpdated?.call(); // Quick refresh the court marker UI
+        widget.onCourtUpdated?.call();
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _selectedCourtsInUse = widget.court.courtsInUse; // Revert on error
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Row(
@@ -812,6 +906,13 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+          _lastTappedIndex = null;
+        });
       }
     }
   }

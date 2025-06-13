@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:bagel/providers/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,7 +24,7 @@ class MapsScreen extends StatefulWidget {
 class _MapsScreenState extends State<MapsScreen> {
   GoogleMapController? _mapController;
   LatLng? _userLocation;
-  bool _isLocationLoaded = false; // Add this flag
+  bool _isLocationLoaded = false;
   final Map<String, BitmapDescriptor> _markerCache = {};
   
   double _currentZoom = 12.0;
@@ -31,7 +32,11 @@ class _MapsScreenState extends State<MapsScreen> {
   
   // Court data storage - persists individual courts once loaded
   final Map<String, TennisCourt> _loadedCourts = {}; // court ID -> court data
-  final Set<String> _loadedRegions = {}; // track which regions we've already loaded
+  
+  // Grid-based region tracking
+  final Map<String, LatLngBounds> _loadedGridCells = {}; // grid cell -> bounds
+  static const double _gridSizeKm = 2.0; // 2km grid cells
+  static const double _overlapThreshold = 0.7; // 70% overlap to avoid reload
   
   @override
   void initState() {
@@ -61,11 +66,10 @@ class _MapsScreenState extends State<MapsScreen> {
       }
       
       setState(() {
-        _isLocationLoaded = true; // Set flag when location is ready
+        _isLocationLoaded = true;
       });
     } catch (e) {
       debugPrint('Error loading user profile: $e');
-      // Fall back to default location on error
       _userLocation = LatLng(37.7749, -122.4194);
       setState(() {
         _isLocationLoaded = true;
@@ -133,6 +137,106 @@ class _MapsScreenState extends State<MapsScreen> {
     }
   }
 
+  // Convert latitude/longitude to grid coordinates
+  _GridCoordinate _latLngToGridCoordinate(double lat, double lng) {
+    // Each degree of latitude is approximately 111 km
+    // Each degree of longitude varies by latitude but we'll use an approximation
+    const double kmPerDegreeLat = 111.0;
+    final double kmPerDegreeLng = 111.0 * math.cos(lat * math.pi / 180);
+    
+    final int gridX = (lng * kmPerDegreeLng / _gridSizeKm).floor();
+    final int gridY = (lat * kmPerDegreeLat / _gridSizeKm).floor();
+    
+    return _GridCoordinate(gridX, gridY);
+  }
+
+  // Convert grid coordinate back to lat/lng bounds
+  LatLngBounds _gridCoordinateToLatLngBounds(_GridCoordinate coord) {
+    const double kmPerDegreeLat = 111.0;
+    final double avgLat = 40.0; // Use average latitude for longitude calculation
+    final double kmPerDegreeLng = 111.0 * math.cos(avgLat * math.pi / 180);
+    
+    final double minLat = coord.y * _gridSizeKm / kmPerDegreeLat;
+    final double maxLat = (coord.y + 1) * _gridSizeKm / kmPerDegreeLat;
+    final double minLng = coord.x * _gridSizeKm / kmPerDegreeLng;
+    final double maxLng = (coord.x + 1) * _gridSizeKm / kmPerDegreeLng;
+    
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  // Get all grid cells that overlap with the current viewport
+  Set<_GridCoordinate> _getGridCellsForBounds(LatLngBounds bounds) {
+    final Set<_GridCoordinate> gridCells = {};
+    
+    final swGrid = _latLngToGridCoordinate(bounds.southwest.latitude, bounds.southwest.longitude);
+    final neGrid = _latLngToGridCoordinate(bounds.northeast.latitude, bounds.northeast.longitude);
+    
+    // Add all grid cells that intersect with the viewport
+    for (int x = swGrid.x; x <= neGrid.x; x++) {
+      for (int y = swGrid.y; y <= neGrid.y; y++) {
+        gridCells.add(_GridCoordinate(x, y));
+      }
+    }
+    
+    return gridCells;
+  }
+
+  // Calculate how much area overlap exists between two bounds
+  double _calculateBoundsOverlap(LatLngBounds bounds1, LatLngBounds bounds2) {
+    final double overlapNorth = math.min(bounds1.northeast.latitude, bounds2.northeast.latitude);
+    final double overlapSouth = math.max(bounds1.southwest.latitude, bounds2.southwest.latitude);
+    final double overlapEast = math.min(bounds1.northeast.longitude, bounds2.northeast.longitude);
+    final double overlapWest = math.max(bounds1.southwest.longitude, bounds2.southwest.longitude);
+    
+    if (overlapNorth <= overlapSouth || overlapEast <= overlapWest) {
+      return 0.0; // No overlap
+    }
+    
+    final double overlapArea = (overlapNorth - overlapSouth) * (overlapEast - overlapWest);
+    final double bounds1Area = (bounds1.northeast.latitude - bounds1.southwest.latitude) * 
+                              (bounds1.northeast.longitude - bounds1.southwest.longitude);
+    
+    return overlapArea / bounds1Area;
+  }
+
+  // Check if we need to load new data for the current viewport
+  bool _shouldLoadNewData(LatLngBounds currentBounds) {
+    if (_loadedGridCells.isEmpty) return true;
+    
+    // Check if current viewport has sufficient overlap with any loaded region
+    for (final loadedBounds in _loadedGridCells.values) {
+      final overlap = _calculateBoundsOverlap(currentBounds, loadedBounds);
+      if (overlap >= _overlapThreshold) {
+        debugPrint('Found sufficient overlap (${overlap.toStringAsFixed(2)}) with loaded region');
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  // Create expanded bounds with buffer for better caching
+  LatLngBounds _createExpandedBounds(LatLngBounds bounds) {
+    const double bufferFactor = 0.3; // 30% buffer on each side
+    
+    final double latBuffer = (bounds.northeast.latitude - bounds.southwest.latitude) * bufferFactor;
+    final double lngBuffer = (bounds.northeast.longitude - bounds.southwest.longitude) * bufferFactor;
+    
+    return LatLngBounds(
+      southwest: LatLng(
+        bounds.southwest.latitude - latBuffer,
+        bounds.southwest.longitude - lngBuffer,
+      ),
+      northeast: LatLng(
+        bounds.northeast.latitude + latBuffer,
+        bounds.northeast.longitude + lngBuffer,
+      ),
+    );
+  }
+
   Future<void> _loadCourtsInViewport() async {
     if (_mapController == null) return;
     if (!mounted) return;
@@ -141,44 +245,49 @@ class _MapsScreenState extends State<MapsScreen> {
       final bounds = await _mapController!.getVisibleRegion();
       debugPrint('Loading courts for bounds: ${bounds.southwest} to ${bounds.northeast}');
 
-      // Create region key to track if we've loaded this area before
-      final regionKey = _createRegionKey(bounds);
-      
-      // Get courts that are already in our viewport from loaded data
-      List<TennisCourt> courtsInViewport = _getCourtsInBounds(bounds);
-      
-      // Only make API call if we haven't loaded this region before
-      if (!_loadedRegions.contains(regionKey)) {
+      // Check if we need to load new data
+      if (!_shouldLoadNewData(bounds)) {
+        debugPrint('Using cached data - sufficient overlap found');
+        List<TennisCourt> courtsInViewport = _getCourtsInBounds(bounds);
+        Set<Marker> newMarkers = await _createCourtMarkers(courtsInViewport);
         
-        debugPrint('Fetching new courts data from API for region: $regionKey');
-        
-        final courtsData = await ApiService.getCourtsInBounds(
-          northLat: bounds.northeast.latitude,
-          southLat: bounds.southwest.latitude,
-          eastLng: bounds.northeast.longitude,
-          westLng: bounds.southwest.longitude,
-          zoomLevel: _currentZoom,
-        );
-
-        debugPrint('Loaded ${courtsData.length} new courts from API');
-        
-        // Store each court individually
-        for (final courtData in courtsData) {
-          final court = TennisCourt.fromJson(courtData);
-          _loadedCourts[court.clusterId] = court;
-        }
-        
-        // Mark this region as loaded
-        _loadedRegions.add(regionKey);
-        
-        // Get updated list of courts in viewport
-        courtsInViewport = _getCourtsInBounds(bounds);
-        
-      } else {
-        debugPrint('Using cached court data - ${courtsInViewport.length} courts in viewport');
+        if (!mounted) return;
+        setState(() {
+          _viewportMarkers = newMarkers;
+        });
+        return;
       }
+      
+      // Create expanded bounds for better caching
+      final expandedBounds = _createExpandedBounds(bounds);
+      
+      debugPrint('Fetching new courts data from API');
+      
+      final courtsData = await ApiService.getCourtsInBounds(
+        northLat: expandedBounds.northeast.latitude,
+        southLat: expandedBounds.southwest.latitude,
+        eastLng: expandedBounds.northeast.longitude,
+        westLng: expandedBounds.southwest.longitude,
+        zoomLevel: _currentZoom,
+      );
 
-      // Create markers for courts in current viewport
+      debugPrint('Loaded ${courtsData.length} courts from API');
+      
+      // Store each court individually
+      for (final courtData in courtsData) {
+        final court = TennisCourt.fromJson(courtData);
+        _loadedCourts[court.clusterId] = court;
+      }
+      
+      // Mark the grid cells as loaded
+      final gridCells = _getGridCellsForBounds(expandedBounds);
+      for (final cell in gridCells) {
+        final cellBounds = _gridCoordinateToLatLngBounds(cell);
+        _loadedGridCells['${cell.x}_${cell.y}'] = cellBounds;
+      }
+      
+      // Get courts in current viewport and create markers
+      List<TennisCourt> courtsInViewport = _getCourtsInBounds(bounds);
       Set<Marker> newMarkers = await _createCourtMarkers(courtsInViewport);
       
       if (!mounted) return;
@@ -202,24 +311,13 @@ class _MapsScreenState extends State<MapsScreen> {
     }).toList();
   }
 
-  // Create a region key for tracking loaded areas (larger regions to avoid too many API calls)
-  String _createRegionKey(LatLngBounds bounds) {
-    // Round to 2 decimal places to create larger regions (~1km precision)
-    final north = (bounds.northeast.latitude * 100).round() / 100;
-    final south = (bounds.southwest.latitude * 100).round() / 100;
-    final east = (bounds.northeast.longitude * 100).round() / 100;
-    final west = (bounds.southwest.longitude * 100).round() / 100;
-    
-    return '${north}_${south}_${east}_$west';
-  }
-
   void _loadCourts() {
     final courtsProvider = Provider.of<CourtsProvider>(context, listen: false);
     courtsProvider.loadCourts();
     
     // Clear loaded data when manually refreshing to get fresh data
     _loadedCourts.clear();
-    _loadedRegions.clear();
+    _loadedGridCells.clear();
     
     _loadCourtsInViewport();
   }
@@ -374,7 +472,7 @@ class _MapsScreenState extends State<MapsScreen> {
     return markers;
   }
 
-    // Handle marker taps by finding the closest court to the marker position
+  // Handle marker taps by finding the closest court to the marker position
   Future<void> _handleMarkerTap(LatLng markerPosition) async {
     debugPrint('=== MARKER TAP DETECTED ===');
     debugPrint('Marker position: ${markerPosition.latitude}, ${markerPosition.longitude}');
@@ -439,58 +537,6 @@ class _MapsScreenState extends State<MapsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 56, // Standard height for better proportion
-        title: null,
-        centerTitle: true,
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _loadCourts();
-                },
-                borderRadius: BorderRadius.circular(12),
-                splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.refresh_rounded,
-                    color: Color(0xFF3B82F6),
-                    size: 20,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-      ),
       body: !_isLocationLoaded || _userLocation == null
           ? Container(
               decoration: BoxDecoration(
@@ -568,8 +614,74 @@ class _MapsScreenState extends State<MapsScreen> {
                     ]
                   ''',
                 ),
+                // Floating refresh button in top-left
+                SafeArea(
+                  child: Positioned(
+                    top: 16,
+                    left: 16,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _loadCourts();
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                        highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.refresh_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
     );
   }
+}
+
+// Helper class for grid coordinates
+class _GridCoordinate {
+  final int x;
+  final int y;
+  
+  _GridCoordinate(this.x, this.y);
+  
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _GridCoordinate &&
+          runtimeType == other.runtimeType &&
+          x == other.x &&
+          y == other.y;
+
+  @override
+  int get hashCode => x.hashCode ^ y.hashCode;
+  
+  @override
+  String toString() => 'GridCoordinate($x, $y)';
 }
