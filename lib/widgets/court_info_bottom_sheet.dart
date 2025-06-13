@@ -180,7 +180,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Court info updated successfully!'),
+                              content: Text('Thanks for keeping court info up to date!'),
                               backgroundColor: Color(0xFF007AFF),
                             ),
                           );
