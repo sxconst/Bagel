@@ -1,34 +1,33 @@
 class Raffle {
   final String id;
-  final String title;
-  final String description;
-  final String sponsorStore;
-  final int tokensRequired;
-  final DateTime endDate;
+  final DateTime start;
+  final DateTime end;
+  final bool status;
   final String prize;
-  final int userEntries;
-
+  final int entryFee;
+  final String? winner;
+  
   Raffle({
     required this.id,
-    required this.title,
-    required this.description,
-    required this.sponsorStore,
-    required this.tokensRequired,
-    required this.endDate,
+    required this.start,
+    required this.end,
+    required this.status,
     required this.prize,
-    this.userEntries = 0,
+    required this.entryFee,
+    this.winner,
   });
 
   factory Raffle.fromJson(Map<String, dynamic> json) {
+    final winner = (json['winner'] != null) ? json['winner'] : 'No Winner Yet';
+    
     return Raffle(
       id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      sponsorStore: json['sponsorStore'],
-      tokensRequired: json['tokensRequired'],
-      endDate: DateTime.parse(json['endDate']),
+      start: DateTime.parse(json['start']),
+      end: DateTime.parse(json['end']),
+      status: json['status'],
       prize: json['prize'],
-      userEntries: json['userEntries'] ?? 0,
+      entryFee: json['entry_fee'],
+      winner: winner
     );
   }
 }

@@ -57,7 +57,7 @@ class _MapsScreenState extends State<MapsScreen> {
         debugPrint('Loaded user location from profile: ${_userLocation?.latitude}, ${_userLocation?.longitude}');
         // ignore: use_build_context_synchronously
         final UserProvider userDataLoader = Provider.of<UserProvider>(context, listen: false);
-        userDataLoader.loadUserData(profile["id"]);
+        userDataLoader.loadUserData();
       }
       
       setState(() {
@@ -346,6 +346,15 @@ class _MapsScreenState extends State<MapsScreen> {
   void _loadCourts() {
     final courtsProvider = Provider.of<CourtsProvider>(context, listen: false);
     courtsProvider.loadCourts();
+
+    _cachedRegion = null;
+    
+    _loadCourtsInViewport();
+  }
+
+  void _refreshCourts() {
+    final courtsProvider = Provider.of<CourtsProvider>(context, listen: false);
+    courtsProvider.loadCourts();
     
     // Clear all cached data to force refresh
     _allCourts.clear();
@@ -531,7 +540,7 @@ class _MapsScreenState extends State<MapsScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.green.withValues(alpha: 0.05),
+                    Colors.blue.withValues(alpha: 0.05),
                     Colors.white,
                   ],
                 ),
@@ -541,7 +550,7 @@ class _MapsScreenState extends State<MapsScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
                       strokeWidth: 3,
                     ),
                     SizedBox(height: 24),
@@ -615,7 +624,7 @@ class _MapsScreenState extends State<MapsScreen> {
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          _loadCourts();
+                          _refreshCourts();
                         },
                         borderRadius: BorderRadius.circular(12),
                         splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),

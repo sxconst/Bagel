@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'package:bagel/providers/user_provider.dart';
+import 'package:provider/provider.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isAuthenticated = false;
@@ -8,7 +10,7 @@ class AuthProvider with ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
 
-  Future<bool> signIn({required String email, required String password}) async {
+  Future<bool> signIn({required BuildContext context, required String email, required String password}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -18,6 +20,9 @@ class AuthProvider with ChangeNotifier {
       
       _isLoading = false;
       notifyListeners();
+      // ignore: use_build_context_synchronously
+      final UserProvider userDataLoader = Provider.of<UserProvider>(context, listen: false);
+      userDataLoader.loadUserData();
       return _isAuthenticated;
     } catch (e) {
       _isLoading = false;

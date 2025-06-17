@@ -442,7 +442,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
 
     // Default fallback to court status logic
     if (widget.court.status == CourtStatus.noRecentReport) {
-      return const Color(0xFF8B8D98); // Neutral gray
+      return Colors.grey[300]!; // No Higlhight
     } else if (value == 0) {
       return const Color(0xFF22C55E); // Green
     } else if (value == totalCourts) {
@@ -453,12 +453,24 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
   }
 
   Color _getGlowColorForValue(int value, int totalCourts) {
+    if (widget.court.status == CourtStatus.noRecentReport && !(_isUpdating && _lastTappedIndex == value)) {
+      return Colors.transparent;
+    }
+
     final baseColor = _getPrimaryColorForValue(value, totalCourts);
     return baseColor.withValues(alpha: 0.3);
   }
 
+  bool _shouldButtonAppearSelected(int index) {
+     // Show as selected if:
+    // 1. Currently updating this specific button, OR
+    // 2. There's a recent report AND it matches the current usage
+    return (_isUpdating && _lastTappedIndex == index) || 
+          (widget.court.status != CourtStatus.noRecentReport && _selectedCourtsInUse == index);
+  }
+
   Widget _buildPremiumUsageButton(int index) {
-  final isSelected = _selectedCourtsInUse == index;
+  final isSelected = _shouldButtonAppearSelected(index);
   final isUpdating = _isUpdating && _lastTappedIndex == index;
   
   // Use colors based on this specific button's value, not the overall court status
@@ -607,7 +619,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
 }
 
   void _handleUsageButtonTap(int index) async {
-    if (_isUpdating || index == _selectedCourtsInUse) return;
+    if (_isUpdating || (index == _selectedCourtsInUse && widget.court.status != CourtStatus.noRecentReport)) return;
     
     await AuthGuard.protectAsync(
       context,
@@ -845,8 +857,8 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
 
     try {
       await courtsProvider.updateCourtUsage(widget.court.clusterId, newUsageCount);
-      await userProvider.addTokens(Supabase.instance.client.auth.currentUser?.id, 100);
-      await userProvider.updateNumReports(Supabase.instance.client.auth.currentUser?.id);
+      await userProvider.addTokens(100);
+      await userProvider.updateNumReports();
 
       if (mounted) {
         Navigator.pop(context);

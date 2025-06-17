@@ -7,6 +7,7 @@ class ApiService {
   
   static const String courtsTable = 'courts';
   static const String profilesTable = 'profiles';
+  static const String rafflesTable = 'raffles';
 
   /// Retrieves all tennis courts from Supabase
   static Future<List<Map<String, dynamic>>> getCourts() async {
@@ -229,20 +230,17 @@ class ApiService {
   }
 
   static Future<List<Map<String, dynamic>>> getRaffles() async {
-    // You can also move this to Supabase if needed
-    await Future.delayed(const Duration(milliseconds: 500));
-    return [
-      {
-        'id': '1',
-        'title': 'Wilson Pro Staff RF97',
-        'description': 'Professional tennis racket',
-        'sponsorStore': 'Tennis Pro Shop',
-        'tokensRequired': 500,
-        'endDate': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
-        'prize': 'Wilson Pro Staff RF97 Racket',
-        'userEntries': 0,
-      },
-    ];
+    try {
+      final result = await _supabase
+          .from(rafflesTable)
+          .select('*')
+          .eq('status', true);
+      
+      return List<Map<String, dynamic>>.from(result);
+    } catch (error) {
+      debugPrint('Error fetching raffles: $error');
+      return [];
+    }
   }
 
   static Future<(bool, User?)> signUp({
