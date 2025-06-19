@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'maps_screen.dart';
 import 'rewards_screen.dart';
-import 'account_screen.dart';
+import 'for_you_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -11,11 +11,24 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  int _currentIndex = 1; // Start with Courts tab to trigger map loading
 
   // iOS Blue color scheme
   static const Color iosBlue = Color(0xFF007AFF);
   static const Color iosGray = Color(0xFF8E8E93);
+
+  @override
+  void initState() {
+    super.initState();
+    // Switch to For You page after a brief moment to allow map initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          setState(() => _currentIndex = 0);
+        }
+      });
+    });
+  }
 
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
@@ -30,15 +43,15 @@ class _MainScreenState extends State<MainScreen> {
           const MapsScreen(),
           
           // Overlay screens
-          if (_currentIndex == 1)
+          if (_currentIndex == 0)
             Container(
               color: Colors.white,
-              child: const RewardsScreen(),
+              child: const ForYouScreen(),
             ),
           if (_currentIndex == 2)
             Container(
               color: Colors.white,
-              child: const AccountScreen(),
+              child: const RewardsScreen(),
             ),
         ],
       ),
@@ -66,9 +79,9 @@ class _MainScreenState extends State<MainScreen> {
                 
                 return Row(
                   children: [
-                    _buildNavItem(0, Icons.sports_tennis_outlined, Icons.sports_tennis, 'Courts', buttonWidth),
-                    _buildNavItem(1, Icons.emoji_events_outlined, Icons.emoji_events, 'Rewards', buttonWidth),
-                    _buildNavItem(2, Icons.person_outline, Icons.person, 'Account', buttonWidth),
+                    _buildNavItem(0, Icons.home_outlined, Icons.home, 'For You', buttonWidth),
+                    _buildNavItem(1, Icons.sports_tennis_outlined, Icons.sports_tennis, 'Courts', buttonWidth),
+                    _buildNavItem(2, Icons.emoji_events_outlined, Icons.emoji_events, 'Rewards', buttonWidth),
                   ],
                 );
               },

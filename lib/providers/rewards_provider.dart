@@ -34,4 +34,17 @@ class RewardsProvider with ChangeNotifier {
       return false;
     }
   }
+
+  Future<Duration?> refreshCountdown() async {
+    try {
+      final raffle = await ApiService.getRaffles();
+      final raffleDetails = raffle.map((json) => Raffle.fromJson(json)).toList();
+      final firstRaffle = raffleDetails.first;
+      final difference = firstRaffle.end.difference(DateTime.now().toUtc());
+      return difference;
+    } catch (e) {
+      debugPrint('Could not fetch raffle details: $e');
+      return Duration.zero;
+    }
+  }
 }

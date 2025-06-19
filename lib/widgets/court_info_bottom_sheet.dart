@@ -702,7 +702,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
                   
                   const SizedBox(height: 12),
                   
-                  // Court detail icons and edit button row
+                  // Court detail icons and edit button row TODO: Finish the tooltip messages
                   Row(
                     children: [
                       // Icons section

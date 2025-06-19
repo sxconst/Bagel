@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/rewards_provider.dart';
 import '../providers/user_provider.dart';
-import '../widgets/raffle_card.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -15,6 +14,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
   late TabController _tabController;
   int selectedEntries = 1;
   final int entryFee = 500;
+  Duration? countdownDuration;
 
   @override
   void initState() {
@@ -22,8 +22,25 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     _tabController = TabController(length: 2, vsync: this);
     // Load raffles when the screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<RewardsProvider>(context, listen: false).loadRaffles();
+      _loadRaffleData();
     });
+  }
+
+  Future<void> _loadRaffleData() async {
+    final rewardsProvider = Provider.of<RewardsProvider>(context, listen: false);
+    
+    // If raffles are not cached, load them
+    if (rewardsProvider.raffles.isEmpty) {
+      await rewardsProvider.loadRaffles();
+    }
+    
+    // Always refresh the countdown
+    final duration = await rewardsProvider.refreshCountdown();
+    if (duration != null && mounted) {
+      setState(() {
+        countdownDuration = duration;
+      });
+    }
   }
 
   @override
@@ -257,6 +274,9 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
               
               // Winner Section
               _buildWinnerSection(),
+              
+              // Extra spacing at bottom for ads
+              const SizedBox(height: 80),
             ],
           ),
         );
@@ -465,7 +485,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildTimerSection() {
+    Widget _buildTimerSection() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -492,24 +512,49 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
           ),
           const SizedBox(height: 16),
           
-          // Timer Display
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildTimerUnit('05', 'DAYS'),
-              const SizedBox(width: 8),
-              const Text(
-                ':',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1976D2),
+          if (countdownDuration != null)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                _buildTimerUnit(countdownDuration!.inDays.toString().padLeft(2, '0'), 'DAYS'),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    ':',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              _buildTimerUnit('14', 'HRS'),
-            ],
-          ),
+                _buildTimerUnit((countdownDuration!.inHours % 24).toString().padLeft(2, '0'), 'HRS'),
+              ],
+            )
+          else
+            // Fallback to hardcoded values if countdown is not available
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                _buildTimerUnit('--', 'DAYS'),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    ':',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                ),
+                _buildTimerUnit('--', 'HRS'),
+              ],
+            ),
         ],
       ),
     );
@@ -517,6 +562,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
 
   Widget _buildTimerUnit(String value, String label) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
@@ -526,6 +572,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
             color: Color(0xFF1976D2),
           ),
         ),
+        const SizedBox(height: 4),
         Text(
           label,
           style: const TextStyle(
