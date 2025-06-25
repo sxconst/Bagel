@@ -639,209 +639,212 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
     final surfaceKey = GlobalKey();
     final lightsKey = GlobalKey();
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.only(top: 8, bottom: 8),
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with title and directions button
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.court.name,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      
-                      // Directions button
-                      ElevatedButton.icon(
-                        onPressed: _openDirections,
-                        icon: const Icon(Icons.directions_outlined, size: 16),
-                        label: const Text('Directions'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[100],
-                          foregroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  // Court detail icons and edit button row TODO: Finish the tooltip messages
-                  Row(
-                    children: [
-                      // Icons section
-                      Expanded(
-                        child: Row(
-                          children: [
-                            GestureDetector(
-                              key: accessKey,
-                              onTap: () => _showTooltip(accessKey, _getAccessMessage(widget.court.access)),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  color: _getAccessColor(widget.court.access),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.lock_outline,
-                                  size: 20,
-                                  color: _getIconColor(_getAccessColor(widget.court.access)),
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              key: surfaceKey,
-                              onTap: () => _showTooltip(surfaceKey, _getSurfaceMessage(widget.court.surface)),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  color: _getSurfaceColor(widget.court.surface),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.texture,
-                                  size: 20,
-                                  color: _getIconColor(_getSurfaceColor(widget.court.surface)),
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              key: lightsKey,
-                              onTap: () => _showTooltip(lightsKey, _getLightsMessage(widget.court.lights)),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: _getLightsColor(widget.court.lights),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.lightbulb_outline,
-                                  size: 20,
-                                  color: _getIconColor(_getLightsColor(widget.court.lights)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Edit button
-                      ElevatedButton.icon(
-                        onPressed: _showEditDialog,
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('Update Info'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[100],
-                          foregroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-
-                  const Text(
-                    'How many courts are in use?',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 2),
-                  
-                  Text(
-                    widget.court.status == CourtStatus.noRecentReport
-                        ? 'No report in the last 60 minutes'
-                        : 'Last updated ${widget.court.timeSinceLastUpdate} minutes ago by ${widget.court.lastUpdatedBy}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Premium usage selector
-                  Row(
-                    children: List.generate(widget.court.totalCourts + 1, (index) {
-                      return _buildPremiumUsageButton(index);
-                    }),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Sign-in hint
-                  if (!AuthGuard.isSignedIn) ...[
-                    Text(
-                      'Sign in to update courts and earn 100 tokens per report',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ],
+    return PopScope (
+      canPop: !_isUpdating, // Prevent back button/gesture dismiss during update
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-          ),
-        ],
+            
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with title and directions button
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.court.name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        
+                        // Directions button
+                        ElevatedButton.icon(
+                          onPressed: _openDirections,
+                          icon: const Icon(Icons.directions_outlined, size: 16),
+                          label: const Text('Directions'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[100],
+                            foregroundColor: Colors.grey[700],
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Court detail icons and edit button row TODO: Finish the tooltip messages
+                    Row(
+                      children: [
+                        // Icons section
+                        Expanded(
+                          child: Row(
+                            children: [
+                              GestureDetector(
+                                key: accessKey,
+                                onTap: () => _showTooltip(accessKey, _getAccessMessage(widget.court.access)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    color: _getAccessColor(widget.court.access),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.lock_outline,
+                                    size: 20,
+                                    color: _getIconColor(_getAccessColor(widget.court.access)),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                key: surfaceKey,
+                                onTap: () => _showTooltip(surfaceKey, _getSurfaceMessage(widget.court.surface)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    color: _getSurfaceColor(widget.court.surface),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.texture,
+                                    size: 20,
+                                    color: _getIconColor(_getSurfaceColor(widget.court.surface)),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                key: lightsKey,
+                                onTap: () => _showTooltip(lightsKey, _getLightsMessage(widget.court.lights)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: _getLightsColor(widget.court.lights),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.lightbulb_outline,
+                                    size: 20,
+                                    color: _getIconColor(_getLightsColor(widget.court.lights)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 12),
+                        
+                        // Edit button
+                        ElevatedButton.icon(
+                          onPressed: _showEditDialog,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Update Info'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[100],
+                            foregroundColor: Colors.grey[700],
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'How many courts are in use?',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 2),
+                    
+                    Text(
+                      widget.court.status == CourtStatus.noRecentReport
+                          ? 'No report in the last 60 minutes'
+                          : 'Last updated ${widget.court.timeSinceLastUpdate} minutes ago by ${widget.court.lastUpdatedBy}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Premium usage selector
+                    Row(
+                      children: List.generate(widget.court.totalCourts + 1, (index) {
+                        return _buildPremiumUsageButton(index);
+                      }),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Sign-in hint
+                    if (!AuthGuard.isSignedIn) ...[
+                      Text(
+                        'Sign in to update courts and earn 100 tokens per report',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

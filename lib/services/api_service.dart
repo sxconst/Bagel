@@ -8,6 +8,7 @@ class ApiService {
   static const String courtsTable = 'courts';
   static const String profilesTable = 'profiles';
   static const String rafflesTable = 'raffles';
+  static const String raffleEntriesTable = 'raffle_entries';
 
   /// Retrieves all tennis courts from Supabase
   static Future<List<Map<String, dynamic>>> getCourts() async {
@@ -224,9 +225,43 @@ class ApiService {
     ];
   }
 
-  static Future<void> enterRaffle(String raffleId, int tokens) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    // Implement raffle entry logic with Supabase
+ 
+  static Future<void> enterRaffle({
+    required String raffleID, 
+    required String userID, 
+    required int entries
+    }) async {
+    try {
+      // First try to get current entries
+      final existing = await _supabase
+          .from(raffleEntriesTable)
+          .select('entries')
+          .eq('user_id', userID)
+          .eq('raffle_id', raffleID)
+          .maybeSingle();
+      
+      if (existing != null) {
+        // Row exists, update the entries
+        final currentEntries = existing['entries'] as int? ?? 0;
+        final newEntries = currentEntries + entries;
+        
+        await _supabase
+            .from(raffleEntriesTable)
+            .update({'entries': newEntries})
+            .eq('user_id', userID)
+            .eq('raffle_id', raffleID);
+      } else {
+        // Row doesn't exist, create new one
+        await _supabase.from(raffleEntriesTable).insert({
+          'user_id': userID,
+          'raffle_id': raffleID,
+          'entries': entries,
+        }); 
+      }
+    } catch (error) {
+      debugPrint('Error entering raffle: $error');
+      rethrow;
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getRaffles() async {
@@ -339,8 +374,6 @@ class ApiService {
         updates['court_details_updated'] = courtDetailsUpdated;
       }
       updates['updated_at'] = DateTime.now().toUtc().toIso8601String();
-      
-      debugPrint('api_service upsert operation: $updates');
       
       await _supabase.from(profilesTable).upsert(updates);
     } catch (error) {

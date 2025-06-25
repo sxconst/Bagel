@@ -138,7 +138,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
   }
 
   // ignore: strict_top_level_inference
-  Future<void> _handleSubmitEntries(raffle, int totalCost, UserProvider userProvider, RewardsProvider rewardsProvider) async {
+  Future<void> _handleSubmitEntries(raffle, int totalCost, int entryFee, UserProvider userProvider, RewardsProvider rewardsProvider) async {
     if (!AuthGuard.isSignedIn) {
       final authenticated = await AuthGuard.requireAuth(context);
       if (!authenticated) return;
@@ -162,7 +162,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     // Enter the raffle
     final success = await rewardsProvider.enterRaffle(
       raffle.id, 
-      totalCost,
+      (totalCost/entryFee).toInt(), // Number of entries
     );
     
     // Hide loading indicator
@@ -187,7 +187,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 ? 'Successfully entered raffle!' 
                 : 'Successfully entered raffle with $selectedEntries entries!',
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: Color(0xFF007AFF),
         ),
       );
     } else {
@@ -467,7 +467,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _handleSubmitEntries(raffle, totalCost, userProvider, rewardsProvider),
+                    onPressed: () => _handleSubmitEntries(raffle, totalCost, entryFee, userProvider, rewardsProvider),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1976D2),
                       foregroundColor: Colors.white,

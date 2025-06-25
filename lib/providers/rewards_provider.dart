@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/raffle.dart';
 import '../services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RewardsProvider with ChangeNotifier {
   List<Raffle> _raffles = [];
@@ -27,9 +28,10 @@ class RewardsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> enterRaffle(String raffleId, int tokens) async {
+  Future<bool> enterRaffle(String raffleID, int entries) async {
     try {
-      await ApiService.enterRaffle(raffleId, tokens);
+      final String userID = Supabase.instance.client.auth.currentUser?.id ?? '';
+      await ApiService.enterRaffle(raffleID: raffleID, userID: userID, entries: entries);
       await loadRaffles(); // Refresh data
       return true;
     } catch (e) {
