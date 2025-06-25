@@ -234,7 +234,8 @@ class ApiService {
       final result = await _supabase
           .from(rafflesTable)
           .select('*')
-          .eq('status', true);
+          .order('end', ascending: false)
+          .limit(2); // 1 currently active raffle and the last expired raffle
       
       return List<Map<String, dynamic>>.from(result);
     } catch (error) {

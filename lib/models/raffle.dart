@@ -5,7 +5,7 @@ class Raffle {
   final bool status;
   final String prize;
   final int entryFee;
-  final String? winner;
+  final String winner;
   
   Raffle({
     required this.id,
@@ -14,11 +14,11 @@ class Raffle {
     required this.status,
     required this.prize,
     required this.entryFee,
-    this.winner,
+    required this.winner,
   });
 
   factory Raffle.fromJson(Map<String, dynamic> json) {
-    final winner = (json['winner'] != null) ? json['winner'] : 'No Winner Yet';
+    final winner = (json['winner'] != null) ? json['winner'] : '';
     
     return Raffle(
       id: json['id'],

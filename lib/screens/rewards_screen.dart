@@ -31,8 +31,10 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     final rewardsProvider = Provider.of<RewardsProvider>(context, listen: false);
     
     // If raffles are not cached, load them
+    // Also load and cache the previous raffle winner
     if (rewardsProvider.raffles.isEmpty) {
       await rewardsProvider.loadRaffles();
+      await rewardsProvider.setPreviousWinner();
     }
     
     // Always refresh the countdown
@@ -628,68 +630,72 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
   }
 
   Widget _buildWinnerSection() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const CircleAvatar(
-            radius: 40,
-            backgroundColor: Color(0xFF1976D2),
-            child: Icon(
-              Icons.person,
-              size: 40,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'LAST WEEK\'S WINNER',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1976D2),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'mrjuicy11 / NewJersey',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF212529),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {
-              // Handle view more winners
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF1976D2),
-            ),
-            child: const Text(
-              'VIEW MORE WINNERS',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
+    return Consumer<RewardsProvider>(
+      builder: (context, rewardsProvider, child) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              const CircleAvatar(
+                radius: 40,
+                backgroundColor: Color(0xFF1976D2),
+                child: Icon(
+                  Icons.person,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'LAST WEEK\'S WINNER',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1976D2),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                rewardsProvider.prevWinner,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF212529),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  // Handle view more winners
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF1976D2),
+                ),
+                child: const Text(
+                  'VIEW MORE WINNERS',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

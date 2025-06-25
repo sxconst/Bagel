@@ -5,9 +5,12 @@ import '../services/api_service.dart';
 class RewardsProvider with ChangeNotifier {
   List<Raffle> _raffles = [];
   bool _isLoading = false;
+  String _prevWinner = 'No Winner';
 
   List<Raffle> get raffles => _raffles;
   bool get isLoading => _isLoading;
+
+  String get prevWinner => _prevWinner;
 
   Future<void> loadRaffles() async {
     _isLoading = true;
@@ -45,6 +48,19 @@ class RewardsProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Could not fetch raffle details: $e');
       return Duration.zero;
+    }
+  }
+
+  Future<void> setPreviousWinner() async {
+    try {
+      for (final raffle in raffles) {
+        if (raffle.status == false) {
+          final userData = await ApiService.fetchUserProfile(raffle.winner);
+          _prevWinner = userData?['username'];
+        }
+      }
+    } catch(e) {
+      debugPrint('Could not get previous winner: $e');
     }
   }
 }
