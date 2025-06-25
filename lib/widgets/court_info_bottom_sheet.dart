@@ -621,11 +621,16 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
   void _handleUsageButtonTap(int index) async {
     if (_isUpdating || (index == _selectedCourtsInUse && widget.court.status != CourtStatus.noRecentReport)) return;
     
+    if (!AuthGuard.isSignedIn) {
     await AuthGuard.protectAsync(
       context,
-      () => _performCourtUpdate(index),
+      () => Future.value(),
       message: 'Sign in to update courts and earn 100 tokens!',
     );
+    setState(() {});
+    return;
+  }
+    await _performCourtUpdate(index);
   }
 
   @override
@@ -787,26 +792,26 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
                     ],
                   ),
                   
-                  const SizedBox(height: 20),
-                  
-                  Text(
-                    widget.court.status == CourtStatus.noRecentReport
-                        ? 'No report in the last 60 minutes'
-                        : 'Last updated ${widget.court.timeSinceLastUpdate} minutes ago by ${widget.court.lastUpdatedBy}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  
                   const SizedBox(height: 16),
-                  
+
                   const Text(
                     'How many courts are in use?',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Colors.black,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 2),
+                  
+                  Text(
+                    widget.court.status == CourtStatus.noRecentReport
+                        ? 'No report in the last 60 minutes'
+                        : 'Last updated ${widget.court.timeSinceLastUpdate} minutes ago by ${widget.court.lastUpdatedBy}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
                     ),
                   ),
                   
@@ -859,6 +864,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
       await courtsProvider.updateCourtUsage(widget.court.clusterId, newUsageCount);
       await userProvider.addTokens(100);
       await userProvider.updateNumReports();
+      // TODO: CREATE METHOD TO CHECK WHEN LAST TOKEN EARNING REPORT WAS
 
       if (mounted) {
         Navigator.pop(context);
@@ -866,36 +872,33 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text('Court updated successfully!'),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.stars, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        '+100',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                Icon(Icons.stars, color: Colors.white, size: 16),
+                SizedBox(width: 6),
+                Text(
+                  '+100',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF007AFF),
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            backgroundColor: const Color(0xFF007AFF), // iOS blue
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
+            duration: const Duration(milliseconds: 1200),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            margin: EdgeInsets.symmetric(
+              horizontal: MediaQuery.of(context).size.width * 0.4,
+              vertical: 20,
+            ),
+          )
         );
         widget.onCourtUpdated?.call();
       }

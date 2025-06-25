@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/rewards_provider.dart';
 import '../providers/user_provider.dart';
+import '../auth/auth_guard.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -22,7 +23,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     _tabController = TabController(length: 2, vsync: this);
     // Load raffles when the screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadRaffleData();
+    _loadRaffleData();
     });
   }
 
@@ -108,6 +109,95 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
         );
       },
     );
+  }
+
+  Future<void> _handleIncrementEntries() async {
+    if (!AuthGuard.isSignedIn) {
+      final authenticated = await AuthGuard.requireAuth(context);
+      if (!authenticated) return;
+    }
+    
+    setState(() {
+      selectedEntries++;
+    });
+  }
+
+  Future<void> _handleDecrementEntries() async {
+    if (!AuthGuard.isSignedIn) {
+      final authenticated = await AuthGuard.requireAuth(context);
+      if (!authenticated) return;
+    }
+    
+    if (selectedEntries > 1) {
+      setState(() {
+        selectedEntries--;
+      });
+    }
+  }
+
+  // ignore: strict_top_level_inference
+  Future<void> _handleSubmitEntries(raffle, int totalCost, UserProvider userProvider, RewardsProvider rewardsProvider) async {
+    if (!AuthGuard.isSignedIn) {
+      final authenticated = await AuthGuard.requireAuth(context);
+      if (!authenticated) return;
+    }
+
+    // Check if user has enough tokens (existing validation logic)
+    if (totalCost > userProvider.tokens) {
+      return; // The insufficient tokens message will still be shown in the UI
+    }
+
+    // Show loading indicator
+    showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    // Enter the raffle
+    final success = await rewardsProvider.enterRaffle(
+      raffle.id, 
+      totalCost,
+    );
+    
+    // Hide loading indicator
+    // ignore: use_build_context_synchronously
+    Navigator.of(context).pop();
+    
+    if (success) {
+      // Update user tokens
+      userProvider.spendTokens(totalCost);
+      
+      // Reset selected entries
+      setState(() {
+        selectedEntries = 1;
+      });
+      
+      // Show success message
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            selectedEntries == 1 
+                ? 'Successfully entered raffle!' 
+                : 'Successfully entered raffle with $selectedEntries entries!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      // Show error message
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to enter raffle. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -288,7 +378,6 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
   Widget _buildCurrentRaffleCard(raffle) {
     return Consumer2<UserProvider, RewardsProvider>(
       builder: (context, userProvider, rewardsProvider, child) {
-        final maxEntries = (userProvider.tokens / entryFee).floor();
         final totalCost = selectedEntries * entryFee;
         
         return Container(
@@ -323,11 +412,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      onPressed: selectedEntries > 1 ? () {
-                        setState(() {
-                          selectedEntries--;
-                        });
-                      } : null,
+                      onPressed: selectedEntries > 1 ? _handleDecrementEntries : null,
                       style: IconButton.styleFrom(
                         backgroundColor: selectedEntries > 1 
                             ? const Color(0xFFE3F2FD) 
@@ -353,18 +438,10 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                     const SizedBox(width: 24),
                     
                     IconButton(
-                      onPressed: selectedEntries < maxEntries ? () {
-                        setState(() {
-                          selectedEntries++;
-                        });
-                      } : null,
+                      onPressed: _handleIncrementEntries,
                       style: IconButton.styleFrom(
-                        backgroundColor: selectedEntries < maxEntries 
-                            ? const Color(0xFFE3F2FD) 
-                            : const Color(0xFFF5F5F5),
-                        foregroundColor: selectedEntries < maxEntries 
-                            ? const Color(0xFF1976D2) 
-                            : const Color(0xFF9E9E9E),
+                        backgroundColor: const Color(0xFFE3F2FD),
+                        foregroundColor: const Color(0xFF1976D2),
                       ),
                       icon: const Icon(Icons.add),
                     ),
@@ -384,62 +461,11 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 
                 const SizedBox(height: 32),
                 
-                // Submit Button
+                // Submit Button - Always enabled for visual appeal
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: totalCost <= userProvider.tokens ? () async {
-                      // Show loading indicator
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                      
-                      // Enter the raffle
-                      final success = await rewardsProvider.enterRaffle(
-                        raffle.id, 
-                        totalCost,
-                      );
-                      
-                      // Hide loading indicator
-                      // ignore: use_build_context_synchronously
-                      Navigator.of(context).pop();
-                      
-                      if (success) {
-                        // Update user tokens
-                        userProvider.spendTokens(totalCost);
-                        
-                        // Reset selected entries
-                        setState(() {
-                          selectedEntries = 1;
-                        });
-                        
-                        // Show success message
-                        // ignore: use_build_context_synchronously
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              selectedEntries == 1 
-                                  ? 'Successfully entered raffle!' 
-                                  : 'Successfully entered raffle with $selectedEntries entries!',
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } else {
-                        // Show error message
-                        // ignore: use_build_context_synchronously
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Failed to enter raffle. Please try again.'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    } : null,
+                    onPressed: () => _handleSubmitEntries(raffle, totalCost, userProvider, rewardsProvider),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1976D2),
                       foregroundColor: Colors.white,
@@ -448,7 +474,6 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                         borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 0,
-                      disabledBackgroundColor: const Color(0xFFE0E0E0),
                     ),
                     child: Text(
                       selectedEntries == 1 
@@ -463,8 +488,8 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   ),
                 ),
                 
-                // Insufficient tokens message
-                if (totalCost > userProvider.tokens)
+                // Insufficient tokens message - only show for authenticated users
+                if (AuthGuard.isSignedIn && totalCost > userProvider.tokens)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
@@ -477,6 +502,22 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                       textAlign: TextAlign.center,
                     ),
                   ),
+                
+                // Encouraging sign-up message for unauthenticated users
+                
+              if (!AuthGuard.isSignedIn)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(
+                    'You must be signed in to enter!',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             ),
           ),
@@ -485,7 +526,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     );
   }
 
-    Widget _buildTimerSection() {
+  Widget _buildTimerSection() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
