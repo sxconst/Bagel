@@ -619,17 +619,17 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
 }
 
   void _handleUsageButtonTap(int index) async {
-    if (_isUpdating || (index == _selectedCourtsInUse && widget.court.status != CourtStatus.noRecentReport)) return;
+    if (_isUpdating) return; // Only prevent tapping if currently updating
     
     if (!AuthGuard.isSignedIn) {
-    await AuthGuard.protectAsync(
-      context,
-      () => Future.value(),
-      message: 'Sign in to update courts and earn 100 tokens!',
-    );
-    setState(() {});
-    return;
-  }
+      await AuthGuard.protectAsync(
+        context,
+        () => Future.value(),
+        message: 'Sign in to update courts and earn 100 tokens!',
+      );
+      setState(() {});
+      return;
+    }
     await _performCourtUpdate(index);
   }
 

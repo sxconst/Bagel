@@ -16,6 +16,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
   int selectedEntries = 1;
   final int entryFee = 500;
   Duration? countdownDuration;
+  bool showInsufficientTokensMessage = false; // New state variable
 
   @override
   void initState() {
@@ -81,12 +82,12 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 _EarnMethodItem(
                   icon: Icons.sports_tennis,
                   title: 'Report court usage',
-                  description: 'Earn 100 tokens every time you make a report!',
+                  description: 'Earn 100 tokens every time you make a report',
                 ),
                 _EarnMethodItem(
                   icon: Icons.hourglass_disabled,
                   title: 'Earning limits',
-                  description: 'Token earning is limited to 100/minute and 500/day',
+                  description: 'Token earning is limited to 500 per day',
                 ),
               ],
             ),
@@ -121,6 +122,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     
     setState(() {
       selectedEntries++;
+      showInsufficientTokensMessage = false; // Reset message when changing entries
     });
   }
 
@@ -133,6 +135,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     if (selectedEntries > 1) {
       setState(() {
         selectedEntries--;
+        showInsufficientTokensMessage = false; // Reset message when changing entries
       });
     }
   }
@@ -144,10 +147,18 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
       if (!authenticated) return;
     }
 
-    // Check if user has enough tokens (existing validation logic)
+    // Check if user has enough tokens - show message and return
     if (totalCost > userProvider.tokens) {
-      return; // The insufficient tokens message will still be shown in the UI
+      setState(() {
+        showInsufficientTokensMessage = true;
+      });
+      return;
     }
+
+    // Reset the message since we're proceeding with the submission
+    setState(() {
+      showInsufficientTokensMessage = false;
+    });
 
     // Show loading indicator
     showDialog(
@@ -282,7 +293,50 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              
+              const SizedBox(height: 8),
+
+              // Current tokens display
+              Consumer<UserProvider>(
+                builder: (context, userProvider, child) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Available Tokens: ',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1976D2),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.stars,
+                          color: Color(0xFF1976D2),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${userProvider.tokens}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1976D2),
+                          ),
+                        ),                        
+                      ],
+                    ),
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 20),
               
               // Current Raffle Card
               if (rewardsProvider.raffles.isNotEmpty) 
@@ -381,6 +435,8 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     return Consumer2<UserProvider, RewardsProvider>(
       builder: (context, userProvider, rewardsProvider, child) {
         final totalCost = selectedEntries * entryFee;
+        final hasInsufficientTokens = AuthGuard.isSignedIn && totalCost > userProvider.tokens;
+        final tokensNeeded = hasInsufficientTokens ? totalCost - userProvider.tokens : 0;
         
         return Container(
           decoration: BoxDecoration(
@@ -408,6 +464,8 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   ),
                   textAlign: TextAlign.center,
                 ),
+                
+                const SizedBox(height: 24),
                                 
                 // Entry Counter
                 Row(
@@ -452,13 +510,25 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                 
                 const SizedBox(height: 16),
 
-                Text(
-                  '(${totalCost.toStringAsFixed(0)} TOKENS)',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF6C757D),
-                  ),
+                // Total cost display with star icon (centered)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.stars,
+                      color: Color(0xFF1976D2),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$totalCost',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF6C757D),
+                      ),
+                    ),
+                  ],
                 ),
                 
                 const SizedBox(height: 32),
@@ -479,8 +549,8 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                     ),
                     child: Text(
                       selectedEntries == 1 
-                          ? 'SUBMIT 1 ENTRY' 
-                          : 'SUBMIT $selectedEntries ENTRIES',
+                          ? 'Submit 1 entry' 
+                          : 'Submit $selectedEntries entries',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -490,12 +560,25 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   ),
                 ),
                 
-                // Insufficient tokens message - only show for authenticated users
-                if (AuthGuard.isSignedIn && totalCost > userProvider.tokens)
+                // Insufficient tokens message or sign-in message (only shown conditionally)
+                if (!AuthGuard.isSignedIn)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16),
+                    child: Text(
+                      'You must be signed in to enter!',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else if (showInsufficientTokensMessage && hasInsufficientTokens)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
-                      'Insufficient tokens. You need ${totalCost - userProvider.tokens} more tokens.',
+                      'You need $tokensNeeded more tokens',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.red,
@@ -504,22 +587,6 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                       textAlign: TextAlign.center,
                     ),
                   ),
-                
-                // Encouraging sign-up message for unauthenticated users
-                
-              if (!AuthGuard.isSignedIn)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Text(
-                    'You must be signed in to enter!',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               ],
             ),
           ),
