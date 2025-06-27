@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../providers/user_provider.dart';
 
 class AuthModal {
   static void show(BuildContext context, {VoidCallback? onSuccess}) {
@@ -153,6 +155,9 @@ class _AuthBottomSheetState extends State<AuthBottomSheet> {
         // Assuming ApiService.signIn now returns a result object with success status and error type
         if (result.$1 == true) {
           _showSuccessMessage('Successfully signed in! Welcome back.');
+          // ignore: use_build_context_synchronously
+          final UserProvider userDataLoader = Provider.of<UserProvider>(context, listen: false);
+          userDataLoader.loadUserData();
           // ignore: use_build_context_synchronously
           Navigator.of(context).pop();
           widget.onSuccess?.call();
