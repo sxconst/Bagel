@@ -57,12 +57,12 @@ class ApiService {
   /// Calculate how many courts to show based on zoom level
   static int _calculateLimitByZoom(double zoomLevel) {
     if (zoomLevel == -1) return 100000; // Used for caching
-    if (zoomLevel < 6) return 25;       // Country level
-    if (zoomLevel < 8) return 50;       // State level
-    if (zoomLevel < 10) return 100;     // Regional level
-    if (zoomLevel < 12) return 200;     // City level
-    if (zoomLevel < 15) return 500;     // Neighborhood level
-    if (zoomLevel < 20) return 1000;    // Street level - show all
+    if (zoomLevel < 6) return 200;       // Country level
+    if (zoomLevel < 8) return 400;       // State level
+    if (zoomLevel < 10) return 800;     // Regional level
+    if (zoomLevel < 12) return 1200;     // City level
+    if (zoomLevel < 15) return 1600;     // Neighborhood level
+    if (zoomLevel < 20) return 2000;    // Street level - show all
     return 3000;                        // Very far out zoom - show more
   }
 

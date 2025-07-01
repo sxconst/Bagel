@@ -6,6 +6,8 @@ import '../providers/user_provider.dart';
 import '../auth/auth_guard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/api_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CourtInfoBottomSheet extends StatefulWidget {
   final TennisCourt court;
@@ -59,11 +61,16 @@ String _mapSurfaceValue(String surface) {
 
 class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with TickerProviderStateMixin {
   int _selectedCourtsInUse = 0;
-  OverlayEntry? _tooltipOverlay;
   bool _isUpdating = false;
+  bool _isDetailsExpanded = false;
   late AnimationController _scaleController;
   late AnimationController _rippleController;
+  late AnimationController _expandController;
   int? _lastTappedIndex;
+  
+  // Add spam prevention for location error messages
+  bool _isLocationErrorVisible = false;
+  OverlayEntry? _locationErrorOverlay;
 
   @override
   void initState() {
@@ -77,13 +84,18 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    _expandController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
   }
 
   @override
   void dispose() {
-    _hideTooltip();
     _scaleController.dispose();
     _rippleController.dispose();
+    _expandController.dispose();
+    _locationErrorOverlay?.remove();
     super.dispose();
   }
 
@@ -285,56 +297,6 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
     );
   }
 
-  void _showTooltip(GlobalKey key, String message) {
-    _hideTooltip();
-    
-    final RenderBox renderBox = key.currentContext?.findRenderObject() as RenderBox;
-    final position = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    final screenWidth = MediaQuery.of(context).size.width;
-    
-    _tooltipOverlay = OverlayEntry(
-      builder: (context) => Positioned(
-        left: (screenWidth / 2) - 80, // Center horizontally
-        top: position.dy + size.height + 8,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: 160,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .95),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    
-    Overlay.of(context).insert(_tooltipOverlay!);
-
-    // Auto-dismiss after 5 seconds
-    Future.delayed(const Duration(seconds: 5), () {
-      _hideTooltip();
-    });
-  }
-
   Color _getAccessColor(String access) {
     switch (access.toLowerCase()) {
       case 'public':
@@ -375,61 +337,180 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
         : const Color(0xFF2E1065); // Midnight purple
   }
 
-  String _getAccessMessage(String access) {
+  String _getAccessText(String access) {
     switch (access.toLowerCase()) {
       case 'public':
-        return 'Access is public';
       case 'yes':
-        return 'Access is public';
+        return 'Open to the public';
       case 'private':
-        return 'Access is private';
       case 'no':
-        return 'Access is private';
+        return 'Closed to the public';
       default:
-        return 'Access is unknown';
+        return 'Unknown access';
     }
   }
 
-  String _getSurfaceMessage(String surface) {
+  String _getSurfaceText(String surface) {
     switch (surface.toLowerCase()) {
       case 'acrylic':
-        return 'Surface is acrylic';
+        return 'Acrylic';
       case 'painted':
-        return 'Surface is painted';
+        return 'Painted';
       case 'concrete':
-        return 'Surface is concrete';
+        return 'Concrete';
       case 'asphalt':
-        return 'Surface is asphalt';
+        return 'Asphalt';
       case 'clay':
-        return 'Surface is clay';
+        return 'Clay';
       case 'grass':
-        return 'Surface is grass';
+        return 'Grass';
       default:
-        return 'Surface is unknown';
+        return 'Unknown surface';
     }
   }
 
-  String _getLightsMessage(bool hasLights) {
-    return hasLights 
-        ? 'Lights are available'
-        : 'Lights are unavailable';
+  String _getLightsText(bool hasLights) {
+    return hasLights ? 'Available' : 'Unavailable';
   }
 
-  void _hideTooltip() {
-    _tooltipOverlay?.remove();
-    _tooltipOverlay = null;
+  // Simple implementation using Google Maps SDK approach
+  void _openDirections() async {
+    final double lat = widget.court.lat;
+    final double lng = widget.court.lon;
+    
+    // Use Google Maps URL scheme that works universally
+    final String googleMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving';
+    
+    try {
+      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
+        await launchUrl(
+          Uri.parse(googleMapsUrl),
+          mode: LaunchMode.externalApplication, // This ensures it opens in the Maps app if available
+        );
+      } else {
+        throw 'Could not launch Google Maps';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open directions: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  void _openDirections() {
-    // TODO: Implement opening directions in native maps app
-    // This will use url_launcher to open maps with the court's coordinates
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Opening directions...'),
-        backgroundColor: Color(0xFF007AFF),
-        duration: Duration(seconds: 1),
+  Future<bool> _checkLocationPermissionAndProximity() async {
+    try {
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showLocationError('Location services are disabled. Please enable location services to report court usage.');
+        return false;
+      }
+
+      // Check location permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _showLocationError('Location permission denied. Please allow location access to report court usage.');
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationError('Location permission permanently denied. Please enable location access in settings to report court usage.');
+        return false;
+      }
+
+      // Get current position
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      // Calculate distance to court
+      double distanceInMeters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        widget.court.lat,
+        widget.court.lon,
+      );
+
+      if (distanceInMeters > 5000) {
+        _showLocationError('You must be within 1000m of the court to report usage. You are ${distanceInMeters.round()}m away.');
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      _showLocationError('Unable to get your location. Please check your location settings and try again.');
+      return false;
+    }
+  }
+
+  void _showLocationError(String message) {
+    // Prevent spam by checking if error is already visible
+    if (_isLocationErrorVisible || !mounted) return;
+    
+    _isLocationErrorVisible = true;
+    
+    // Create overlay entry for the error message
+    _locationErrorOverlay = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 20,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.orange,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_off, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
+    
+    // Insert the overlay
+    Overlay.of(context).insert(_locationErrorOverlay!);
+    
+    // Auto-remove after duration
+    Future.delayed(const Duration(seconds: 4), () {
+      _locationErrorOverlay?.remove();
+      _locationErrorOverlay = null;
+      _isLocationErrorVisible = false;
+    });
   }
 
   Color _getPrimaryColorForValue(int value, int totalCourts) {
@@ -470,156 +551,150 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
   }
 
   Widget _buildPremiumUsageButton(int index) {
-  final isSelected = _shouldButtonAppearSelected(index);
-  final isUpdating = _isUpdating && _lastTappedIndex == index;
-  
-  // Use colors based on this specific button's value, not the overall court status
-  final primaryColor = _getPrimaryColorForValue(index, widget.court.totalCourts);
-  final glowColor = _getGlowColorForValue(index, widget.court.totalCourts);
-  
-  return Expanded(
-    child: GestureDetector(
-      onTapDown: (_) {
-        _scaleController.forward();
-      },
-      onTapUp: (_) {
-        _scaleController.reverse();
-      },
-      onTapCancel: () {
-        _scaleController.reverse();
-      },
-      onTap: () => _handleUsageButtonTap(index),
-      child: AnimatedBuilder(
-        animation: _scaleController,
-        builder: (context, child) {
-          final scale = 1.0 - (_scaleController.value * 0.05);
-          return Transform.scale(
-            scale: scale,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? LinearGradient(
-                        colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      )
-                    : LinearGradient(
-                        colors: [Colors.white, Colors.grey[50]!],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+    final isSelected = _shouldButtonAppearSelected(index);
+    final isUpdating = _isUpdating && _lastTappedIndex == index;
+    
+    final primaryColor = _getPrimaryColorForValue(index, widget.court.totalCourts);
+    final glowColor = _getGlowColorForValue(index, widget.court.totalCourts);
+    
+    return Expanded(
+      child: GestureDetector(
+        onTapDown: (_) => _scaleController.forward(),
+        onTapUp: (_) => _scaleController.reverse(),
+        onTapCancel: () => _scaleController.reverse(),
+        onTap: () => _handleUsageButtonTap(index),
+        child: AnimatedBuilder(
+          animation: _scaleController,
+          builder: (context, child) {
+            final scale = 1.0 - (_scaleController.value * 0.03);
+            return Transform.scale(
+              scale: scale,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 64, // Slightly taller
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? LinearGradient(
+                          colors: [primaryColor, primaryColor.withValues(alpha: 0.9)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        )
+                      : LinearGradient(
+                          colors: [Colors.white, Colors.grey[50]!],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                  borderRadius: BorderRadius.circular(20), // More rounded
+                  border: Border.all(
+                    color: isSelected 
+                        ? primaryColor 
+                        : Colors.grey[300]!,
+                    width: isSelected ? 2.5 : 1.5, // Slightly thicker borders
+                  ),
+                  boxShadow: [
+                    if (isSelected) ...[
+                      BoxShadow(
+                        color: glowColor,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected 
-                      ? primaryColor 
-                      : Colors.grey[300]!,
-                  width: isSelected ? 2 : 1,
+                      BoxShadow(
+                        color: glowColor.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ] else ...[
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ],
                 ),
-                boxShadow: [
-                  if (isSelected) ...[
-                    BoxShadow(
-                      color: glowColor,
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                    BoxShadow(
-                      color: glowColor.withValues(alpha: 0.1),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
-                    ),
-                  ] else ...[
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                child: Stack(
+                  children: [
+                    // Ripple effect (unchanged)
+                    if (isUpdating)
+                      AnimatedBuilder(
+                        animation: _rippleController,
+                        builder: (context, child) {
+                          return Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: RadialGradient(
+                                  center: Alignment.center,
+                                  radius: _rippleController.value * 1.5,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.6),
+                                    Colors.white.withValues(alpha: 0.0),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    
+                    // Main content
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (isUpdating) ...[
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isSelected ? Colors.white : primaryColor,
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            Text(
+                              '$index',
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.grey[800],
+                                fontWeight: FontWeight.w800, // Heavier weight
+                                fontSize: 24, // Larger text
+                                shadows: isSelected ? [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    offset: const Offset(0, 1),
+                                    blurRadius: 3,
+                                  ),
+                                ] : null,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (isSelected)
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
-              child: Stack(
-                children: [
-                  // Ripple effect
-                  if (isUpdating)
-                    AnimatedBuilder(
-                      animation: _rippleController,
-                      builder: (context, child) {
-                        return Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              gradient: RadialGradient(
-                                center: Alignment.center,
-                                radius: _rippleController.value * 1.5,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.6),
-                                  Colors.white.withValues(alpha: 0.0),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  // Main content
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (isUpdating) ...[
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                isSelected ? Colors.white : primaryColor,
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          Text(
-                            '$index',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.grey[800],
-                              fontWeight: FontWeight.w700,
-                              fontSize: 20,
-                              shadows: isSelected ? [
-                                Shadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  offset: const Offset(0, 1),
-                                  blurRadius: 2,
-                                ),
-                              ] : null,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          if (isSelected)
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _handleUsageButtonTap(int index) async {
-    if (_isUpdating) return; // Only prevent tapping if currently updating
+    if (_isUpdating) return;
     
     if (!AuthGuard.isSignedIn) {
       await AuthGuard.protectAsync(
@@ -630,15 +705,62 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
       setState(() {});
       return;
     }
+
+    bool isWithinRange = await _checkLocationPermissionAndProximity();
+    if (!isWithinRange) {
+      return;
+    }
+
     await _performCourtUpdate(index);
+  }
+
+  Widget _buildDetailRow(String label, String value, IconData icon, Color iconColor) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10), // Slightly larger padding
+          decoration: BoxDecoration(
+            color: iconColor,
+            borderRadius: BorderRadius.circular(10), // More rounded
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: _getIconColor(iconColor),
+          ),
+        ),
+        const SizedBox(width: 16), // More space
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600, // Slightly heavier
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final accessKey = GlobalKey();
-    final surfaceKey = GlobalKey();
-    final lightsKey = GlobalKey();
-
     return PopScope (
       canPop: !_isUpdating, // Prevent back button/gesture dismiss during update
       child: Container(
@@ -665,180 +787,27 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
             
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header with title and directions button
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            widget.court.name,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        
-                        // Directions button
-                        ElevatedButton.icon(
-                          onPressed: _openDirections,
-                          icon: const Icon(Icons.directions_outlined, size: 16),
-                          label: const Text('Directions'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.grey[700],
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                            textStyle: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    // SECTION 1: Header with title and directions
+                    _buildHeaderSection(),
                     
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 12), // More breathing room
                     
-                    // Court detail icons and edit button row TODO: Finish the tooltip messages
-                    Row(
-                      children: [
-                        // Icons section
-                        Expanded(
-                          child: Row(
-                            children: [
-                              GestureDetector(
-                                key: accessKey,
-                                onTap: () => _showTooltip(accessKey, _getAccessMessage(widget.court.access)),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    color: _getAccessColor(widget.court.access),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.lock_outline,
-                                    size: 20,
-                                    color: _getIconColor(_getAccessColor(widget.court.access)),
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                key: surfaceKey,
-                                onTap: () => _showTooltip(surfaceKey, _getSurfaceMessage(widget.court.surface)),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    color: _getSurfaceColor(widget.court.surface),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.texture,
-                                    size: 20,
-                                    color: _getIconColor(_getSurfaceColor(widget.court.surface)),
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                key: lightsKey,
-                                onTap: () => _showTooltip(lightsKey, _getLightsMessage(widget.court.lights)),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: _getLightsColor(widget.court.lights),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.lightbulb_outline,
-                                    size: 20,
-                                    color: _getIconColor(_getLightsColor(widget.court.lights)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        const SizedBox(width: 12),
-                        
-                        // Edit button
-                        ElevatedButton.icon(
-                          onPressed: _showEditDialog,
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Update Info'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.grey[700],
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                            textStyle: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    // SECTION 2: Court details
+                    _buildCourtDetailsSection(),
                     
-                    const SizedBox(height: 16),
-
-                    const Text(
-                      'How many courts are in use?',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
-                    ),
+                    const SizedBox(height: 14), // Clear section separation
                     
-                    const SizedBox(height: 2),
-                    
-                    Text(
-                      widget.court.status == CourtStatus.noRecentReport
-                          ? 'No report in the last 60 minutes'
-                          : 'Last updated ${widget.court.timeSinceLastUpdate} minutes ago by ${widget.court.lastUpdatedBy}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
-                      ),
-                    ),
+                    // SECTION 3: Usage reporting
+                    _buildUsageReportingSection(),
                     
                     const SizedBox(height: 16),
                     
-                    // Premium usage selector
-                    Row(
-                      children: List.generate(widget.court.totalCourts + 1, (index) {
-                        return _buildPremiumUsageButton(index);
-                      }),
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Sign-in hint
-                    if (!AuthGuard.isSignedIn) ...[
-                      Text(
-                        'Sign in to update courts and earn 100 tokens per report',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
+                    // SECTION 4: Sign-in hint (if needed)
+                    if (!AuthGuard.isSignedIn) _buildSignInHint(),
                   ],
                 ),
               ),
@@ -867,7 +836,6 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
       await courtsProvider.updateCourtUsage(widget.court.clusterId, newUsageCount);
       await userProvider.addTokens(100);
       await userProvider.updateNumReports();
-      // TODO: CREATE METHOD TO CHECK WHEN LAST TOKEN EARNING REPORT WAS
 
       if (mounted) {
         Navigator.pop(context);
@@ -932,6 +900,330 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
           _lastTappedIndex = null;
         });
       }
+    }
+  }
+
+  Widget _buildHeaderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                widget.court.name,
+                style: const TextStyle(
+                  fontSize: 28, // Larger, more prominent
+                  fontWeight: FontWeight.w700, // Heavier weight
+                  color: Colors.black,
+                  height: 1.1, // Tighter line height
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            
+            // Improved directions button
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF007AFF),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF007AFF).withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openDirections,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.directions_outlined, 
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Directions',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCourtDetailsSection() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[100]!),
+      ),
+      child: Column(
+        children: [
+          // Header
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isDetailsExpanded = !_isDetailsExpanded;
+              });
+              if (_isDetailsExpanded) {
+                _expandController.forward();
+              } else {
+                _expandController.reverse();
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(0, 20, 20, 20), // Remove left padding
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Court Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: _isDetailsExpanded ? 0.5 : 0, // Changed to point down when expanded
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down, // Changed from chevron_right to keyboard_arrow_down
+                      color: Colors.grey[600],
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Expanded content
+          AnimatedBuilder(
+            animation: _expandController,
+            builder: (context, child) {
+              return ClipRect(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  heightFactor: _expandController.value,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Column(
+                      children: [
+                        Container(
+                          height: 1,
+                          color: Colors.grey[200],
+                          margin: const EdgeInsets.only(bottom: 20),
+                        ),
+                        
+                        // Details grid
+                        Column(
+                          children: [
+                            _buildDetailRow(
+                              'Access',
+                              _getAccessText(widget.court.access),
+                              Icons.lock_outline,
+                              _getAccessColor(widget.court.access),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDetailRow(
+                              'Surface',
+                              _getSurfaceText(widget.court.surface),
+                              Icons.texture,
+                              _getSurfaceColor(widget.court.surface),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDetailRow(
+                              'Lights',
+                              _getLightsText(widget.court.lights),
+                              Icons.lightbulb_outline,
+                              _getLightsColor(widget.court.lights),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 24),
+                        
+                        // Update button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _showEditDialog,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF007AFF),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: Color(0xFF007AFF)),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Update Court Information',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUsageReportingSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        const Text(
+          'How many courts are in use?',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.black,
+          ),
+        ),
+        
+        const SizedBox(height: 8),
+        
+        // Status with dot indicator
+        Row(
+          children: [
+            // Status dot
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: widget.court.status == CourtStatus.noRecentReport 
+                    ? Colors.grey[400]
+                    : _getStatusColor(),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            
+            // Status text
+            Expanded(
+              child: Text(
+                widget.court.status == CourtStatus.noRecentReport
+                    ? 'No reports in the last 60 minutes'
+                    : 'Last updated by ${widget.court.lastUpdatedBy} ${widget.court.timeSinceLastUpdate}m ago',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Usage buttons
+        Row(
+          children: List.generate(widget.court.totalCourts + 1, (index) {
+            return _buildPremiumUsageButton(index);
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignInHint() {
+    return InkWell(
+      onTap: () async {
+        await AuthGuard.protectAsync(
+          context,
+          () => Future.value(),
+          message: 'Sign in to update courts and earn 100 tokens!',
+        );
+        setState(() {});
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF007AFF).withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF007AFF).withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.stars_outlined,
+              color: const Color(0xFF007AFF),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Sign in to report court usage and earn tokens!',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: const Color(0xFF007AFF),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor() {
+    if (widget.court.timeSinceLastUpdate <= 15) {
+      return Colors.green; // Recent report
+    } else if (widget.court.timeSinceLastUpdate <= 45) {
+      return Colors.orange; // Somewhat recent
+    } else {
+      return Colors.grey[400]!; // Old report
     }
   }
 }

@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
+import 'dart:async';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -28,17 +29,28 @@ class _MapsScreenState extends State<MapsScreen> {
   final Map<String, BitmapDescriptor> _markerCache = {};
   
   double _currentZoom = 12.0;
-  Set<Marker> _viewportMarkers = {};
+  // ignore: prefer_final_fields
+  Set<Marker> _currentMarkers = {}; // Current markers displayed on map
   
   // Simple caching system
   final Map<String, TennisCourt> _allCourts = {}; // court ID -> court data
   CachedRegion? _cachedRegion; // Single cached region
+  
+  // Debouncing mechanism
+  Timer? _debounceTimer;
+  static const Duration _debounceDuration = Duration(milliseconds: 300);
   
   @override
   void initState() {
     super.initState();
     _initializeLocation();
     _initializeUser();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeUser() async {
@@ -185,13 +197,6 @@ class _MapsScreenState extends State<MapsScreen> {
       return true;
     }
     
-    // Check if zoom level has changed significantly (more restrictive)
-    double zoomDifference = (_currentZoom - _cachedRegion!.zoomLevel).abs();
-    if (zoomDifference > 1.5) {
-      debugPrint('Zoom level changed significantly - fetching new data (${_cachedRegion!.zoomLevel} -> $_currentZoom)');
-      return true;
-    }
-    
     // Check if cache is too old (5 minutes)
     if (DateTime.now().difference(_cachedRegion!.timestamp).inMinutes > 5) {
       debugPrint('Cache is too old - fetching new data');
@@ -223,6 +228,16 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
+  // Debounced version of _loadCourtsInViewport
+  void _debouncedLoadCourtsInViewport() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDuration, () {
+      if (mounted) {
+        _loadCourtsInViewport();
+      }
+    });
+  }
+
   Future<void> _loadCourtsInViewport() async {
     if (_mapController == null || !mounted) return;
 
@@ -231,18 +246,12 @@ class _MapsScreenState extends State<MapsScreen> {
       debugPrint('Loading courts for viewport: ${viewport.southwest} to ${viewport.northeast}');
       debugPrint('Current zoom: $_currentZoom');
 
-      // Always update markers from cached data first for responsiveness
+      // Get courts that should be visible in viewport
       List<TennisCourt> courtsInViewport = _getCourtsInViewport(viewport);
       debugPrint('Found ${courtsInViewport.length} courts in current viewport from cache');
       
-      // Update markers immediately with cached data
-      Set<Marker> newMarkers = await _createCourtMarkers(courtsInViewport);
-      
-      if (mounted) {
-        setState(() {
-          _viewportMarkers = newMarkers;
-        });
-      }
+      // Update markers incrementally
+      await _updateMarkersIncrementally(courtsInViewport);
 
       // Check if we need to fetch new data
       if (!_shouldFetchNewData(viewport)) {
@@ -286,16 +295,108 @@ class _MapsScreenState extends State<MapsScreen> {
       // Update markers with new data
       List<TennisCourt> updatedCourtsInViewport = _getCourtsInViewport(viewport);
       debugPrint('Found ${updatedCourtsInViewport.length} courts in viewport after API update');
-      Set<Marker> updatedMarkers = await _createCourtMarkers(updatedCourtsInViewport);
-      
-      if (!mounted) return;
-      
-      setState(() {
-        _viewportMarkers = updatedMarkers;
-      });
+      await _updateMarkersIncrementally(updatedCourtsInViewport);
 
     } catch (error) {
       debugPrint('Error loading courts in viewport: $error');
+    }
+  }
+
+  // Incremental marker update - only add/remove/update markers that have changed
+  Future<void> _updateMarkersIncrementally(List<TennisCourt> courtsToShow) async {
+    if (!mounted) return;
+
+    // Create a set of court IDs that should be visible
+    final Set<String> targetCourtIds = courtsToShow.map((court) => court.clusterId).toSet();
+    
+    // Get current marker IDs
+    final Set<String> currentMarkerIds = _currentMarkers
+        .map((marker) => marker.markerId.value.replaceFirst('court_', ''))
+        .toSet();
+
+    // Find markers to remove (currently displayed but not in target)
+    final Set<String> markersToRemove = currentMarkerIds.difference(targetCourtIds);
+    
+    // Find markers to add (in target but not currently displayed)
+    final Set<String> markersToAdd = targetCourtIds.difference(currentMarkerIds);
+
+    // Find markers that might need updating (in both sets)
+    final Set<String> markersToCheck = currentMarkerIds.intersection(targetCourtIds);
+
+    debugPrint('Marker update: Remove ${markersToRemove.length}, Add ${markersToAdd.length}, Check ${markersToCheck.length}');
+
+    // Remove markers that are no longer needed
+    if (markersToRemove.isNotEmpty) {
+      _currentMarkers.removeWhere((marker) {
+        final courtId = marker.markerId.value.replaceFirst('court_', '');
+        return markersToRemove.contains(courtId);
+      });
+    }
+
+    // Create new markers for courts to add
+    for (final courtId in markersToAdd) {
+      final court = courtsToShow.firstWhere((c) => c.clusterId == courtId);
+      final marker = await _createSingleMarker(court);
+      if (marker != null) {
+        _currentMarkers.add(marker);
+      }
+    }
+
+    // Check if existing markers need updates (status changes)
+    for (final courtId in markersToCheck) {
+      final court = courtsToShow.firstWhere((c) => c.clusterId == courtId);
+      final existingMarker = _currentMarkers.firstWhere(
+        (marker) => marker.markerId.value == 'court_$courtId',
+      );
+
+      // Check if marker needs updating by comparing cache key
+      final newCacheKey = '${court.courtsInUse}_${court.totalCourts}_${court.status.name}';
+      final currentCacheKey = _getMarkerCacheKey(existingMarker);
+
+      if (currentCacheKey != newCacheKey) {
+        _currentMarkers.remove(existingMarker);
+        final newMarker = await _createSingleMarker(court);
+        if (newMarker != null) {
+          _currentMarkers.add(newMarker);
+        }
+      }
+    }
+
+    // Update the UI with new markers
+    if (mounted) {
+      setState(() {
+        // _currentMarkers is already updated above
+      });
+    }
+  }
+
+  // Helper to get cache key from existing marker (we'll store this as a custom property)
+  String _getMarkerCacheKey(Marker marker) {
+    // Since we can't easily extract the cache key from the marker,
+    // we'll use a simple approach: assume it needs updating if it's been a while
+    // In a more sophisticated implementation, you could store marker metadata
+    return '';
+  }
+
+  // Create a single marker for a court
+  Future<Marker?> _createSingleMarker(TennisCourt court) async {
+    try {
+      final markerIcon = await _createModernMarker(
+        courtsInUse: court.courtsInUse,
+        totalCourts: court.totalCourts,
+        status: court.status,
+      );
+
+      return Marker(
+        markerId: MarkerId('court_${court.clusterId}'),
+        position: LatLng(court.lat, court.lon),
+        icon: markerIcon,
+        anchor: const Offset(0.5, 0.5),
+        onTap: () => _handleMarkerTap(court),
+      );
+    } catch (e) {
+      debugPrint('Error creating marker for court ${court.name}: $e');
+      return null;
     }
   }
 
@@ -359,6 +460,7 @@ class _MapsScreenState extends State<MapsScreen> {
     // Clear all cached data to force refresh
     _allCourts.clear();
     _cachedRegion = null;
+    _currentMarkers.clear();
     
     _loadCourtsInViewport();
   }
@@ -482,40 +584,31 @@ class _MapsScreenState extends State<MapsScreen> {
     return bitmapDescriptor;
   }
 
-  Future<Set<Marker>> _createCourtMarkers(List<TennisCourt> courts) async {
-    final Set<Marker> markers = <Marker>{};
-    debugPrint('Creating markers for ${courts.length} courts');
-
-    for (final court in courts) {
-      try {
-        final markerIcon = await _createModernMarker(
-          courtsInUse: court.courtsInUse,
-          totalCourts: court.totalCourts,
-          status: court.status,
-        );
-
-        final marker = Marker(
-          markerId: MarkerId('court_${court.clusterId}'),
-          position: LatLng(court.lat, court.lon),
-          icon: markerIcon,
-          anchor: const Offset(0.5, 0.5),
-          onTap: () => _handleMarkerTap(court),
-        );
-        
-        markers.add(marker);
-      } catch (e) {
-        debugPrint('Error creating marker for court ${court.name}: $e');
-      }
-    }
-
-    debugPrint('Successfully created ${markers.length} markers');
-    return markers;
-  }
-
-  // Simplified marker tap handling
   Future<void> _handleMarkerTap(TennisCourt court) async {
     debugPrint('Marker tapped for court: ${court.name}');
+    
+    // Zoom to the marker first
+    await _zoomToMarker(court);
+    
+    // Then show the court info
     _showCourtInfo(court);
+  }
+
+  Future<void> _zoomToMarker(TennisCourt court) async {
+    if (_mapController == null) return;
+    
+    const double focusZoomLevel = 16.0; // Adjust as needed
+    
+    await _mapController!.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(court.lat, court.lon),
+          zoom: focusZoomLevel,
+        ),
+      ),
+    );
+    
+    _currentZoom = focusZoomLevel;
   }
 
   void _showCourtInfo(TennisCourt court) {
@@ -581,10 +674,10 @@ class _MapsScreenState extends State<MapsScreen> {
                     target: _userLocation!,
                     zoom: _currentZoom,
                   ),
-                  markers: Set<Marker>.from(_viewportMarkers), // Create new set to avoid ParentDataWidget issues
+                  markers: _currentMarkers, // Use current markers directly
                   onCameraIdle: () {
                     debugPrint('Camera stopped moving at zoom $_currentZoom');
-                    _loadCourtsInViewport();
+                    _debouncedLoadCourtsInViewport(); // Use debounced version
                   },
                   onCameraMove: (position) {
                     _currentZoom = position.zoom;
