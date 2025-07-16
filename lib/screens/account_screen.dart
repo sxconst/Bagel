@@ -269,19 +269,19 @@ class _AccountScreenState extends State<AccountScreen> {
           children: [
             Expanded(
               child: _buildStatCard(
-                icon: Icons.stars,
-                title: 'Tokens',
-                value: '${_userProfile?['tokens'] ?? 0}',
-                color: const Color(0xFF007AFF),
+                icon: Icons.campaign_rounded,
+                title: 'Usage Reports',
+                value: '${_userProfile?['reports'] ?? 0}',
+                color: const Color(0xFF34C759),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
                 icon: Icons.report_rounded,
-                title: 'Reports',
-                value: '${_userProfile?['reports'] ?? 0}',
-                color: const Color(0xFF34C759),
+                title: 'Court Detail Updates',
+                value: '${_userProfile?['court_details_updated'] ?? 0}',
+                color: const Color(0xFF007AFF),
               ),
             ),
           ],
@@ -313,7 +313,7 @@ class _AccountScreenState extends State<AccountScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),

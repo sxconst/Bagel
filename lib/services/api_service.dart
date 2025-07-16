@@ -388,7 +388,7 @@ class ApiService {
     try {
       final result = await _supabase
           .from(profilesTable)
-          .select('id, email, last_lat, last_lon, reports, tokens, username')
+          .select('id, email, last_lat, last_lon, reports, tokens, court_details_updated, tokens_earned_24h, username')
           .eq('id', userId)
           .single();
       return result as Map<String, dynamic>?;
@@ -408,6 +408,21 @@ class ApiService {
       return result as Map<String, dynamic>?;
     } catch (error) {
       debugPrint('Error fetching username for $userId: $error');
+      return null;
+    }
+  }
+
+    static Future<Map<String, dynamic>?> fetchUserEntries(String userId, String raffleId) async {
+    try {
+      final result = await _supabase
+          .from(raffleEntriesTable)
+          .select('entries')
+          .eq('user_id', userId)
+          .eq('raffle_id', raffleId)
+          .single();
+      return result as Map<String, dynamic>?;
+    } catch (error) {
+      debugPrint('Error fetching user($userId)\'s raffle entries for raffle($raffleId): $error');
       return null;
     }
   }

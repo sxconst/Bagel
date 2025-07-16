@@ -21,7 +21,7 @@ class UserProvider with ChangeNotifier {
         _tokens = userData?['tokens'];
         _email = userData?['email'];
         _reports = userData?['reports'];
-        _tokens24h = userData?['tokens_earned_24h'] ?? 0;
+        _tokens24h = userData?['tokens_earned_24h'];
         notifyListeners();
       }
     } catch (e) {

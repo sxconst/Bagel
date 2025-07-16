@@ -183,12 +183,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
     if (success) {
       // Update user tokens
       userProvider.spendTokens(totalCost);
-      
-      // Reset selected entries
-      setState(() {
-        selectedEntries = 1;
-      });
-      
+
       // Show success message
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,6 +196,12 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
           backgroundColor: Color(0xFF007AFF),
         ),
       );
+      
+      // Reset selected entries
+      setState(() {
+        selectedEntries = 1;
+      });
+
     } else {
       // Show error message
       // ignore: use_build_context_synchronously
@@ -559,6 +560,27 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 6),
+
+                // Current entries display (discreet)
+                if (AuthGuard.isSignedIn && rewardsProvider.entries > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'You have ${rewardsProvider.entries} previous entries',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF9E9E9E),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 
                 // Insufficient tokens message or sign-in message (only shown conditionally)
                 if (!AuthGuard.isSignedIn)
@@ -776,6 +798,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   color: Color(0xFF212529),
                 ),
               ),
+              /*
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
@@ -792,7 +815,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                     letterSpacing: 0.5,
                   ),
                 ),
-              ),
+              ),*/
             ],
           ),
         );

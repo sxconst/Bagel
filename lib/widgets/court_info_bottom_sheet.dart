@@ -845,43 +845,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
       if (mounted) {
         Navigator.pop(context);
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  tokensAwarded ? Icons.stars : Icons.info_outline,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                SizedBox(width: 6),
-                Text(
-                  tokensAwarded 
-                    ? '+100'
-                    : '+0',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            backgroundColor: const Color(0xFF007AFF), // iOS blue
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(milliseconds: 1200),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            margin: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width * 0.4,
-              vertical: 20,
-            ),
-          )
-        );
+        _showCustomSnackBar(context, tokensAwarded);
         widget.onCourtUpdated?.call();
       }
     } catch (e) {
@@ -912,6 +876,56 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
         });
       }
     }
+  }
+
+  void _showCustomSnackBar(BuildContext context, bool tokensAwarded) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+    
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: MediaQuery.of(context).size.height * 0.11,
+        left: MediaQuery.of(context).size.width * 0.4,
+        right: MediaQuery.of(context).size.width * 0.4,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF007AFF),
+              borderRadius: BorderRadius.circular(36),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.stars,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  tokensAwarded ? '+100' : '+0',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    overlay.insert(overlayEntry);
+    
+    // Auto-remove after duration
+    Future.delayed(Duration(milliseconds: 3000), () {
+      overlayEntry.remove();
+    });
   }
 
   Widget _buildHeaderSection() {
