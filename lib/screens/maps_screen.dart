@@ -39,6 +39,8 @@ class _MapsScreenState extends State<MapsScreen> {
   // Debouncing mechanism
   Timer? _debounceTimer;
   static const Duration _debounceDuration = Duration(milliseconds: 300);
+
+  bool _isSatelliteView = false;
   
   @override
   void initState() {
@@ -665,7 +667,6 @@ class _MapsScreenState extends State<MapsScreen> {
                   onMapCreated: (controller) {
                     setState(() => _mapController = controller);
                     debugPrint('Map controller created with location: ${_userLocation!.latitude}, ${_userLocation!.longitude}');
-                    // Use a small delay to ensure map is fully initialized
                     Future.delayed(const Duration(milliseconds: 500), () {
                       if (mounted) _loadCourtsInViewport();
                     });
@@ -674,18 +675,19 @@ class _MapsScreenState extends State<MapsScreen> {
                     target: _userLocation!,
                     zoom: _currentZoom,
                   ),
-                  markers: _currentMarkers, // Use current markers directly
+                  markers: _currentMarkers,
                   onCameraIdle: () {
                     debugPrint('Camera stopped moving at zoom $_currentZoom');
-                    _debouncedLoadCourtsInViewport(); // Use debounced version
+                    _debouncedLoadCourtsInViewport();
                   },
                   onCameraMove: (position) {
                     _currentZoom = position.zoom;
                   },
                   myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
+                  myLocationButtonEnabled: false,
                   mapToolbarEnabled: false,
                   zoomControlsEnabled: true,
+                  mapType: _isSatelliteView ? MapType.hybrid : MapType.normal,
                   style: '''
                     [
                       {
@@ -708,53 +710,153 @@ class _MapsScreenState extends State<MapsScreen> {
                     ]
                   ''',
                 ),
-                // Floating refresh button in top-left
+                // Floating buttons in top-right, vertically aligned
                 Positioned(
                   top: 6,
                   left: 10,
                   child: SafeArea(
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _refreshCourts();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                        highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
+                    child: Column(
+                      children: [
+                        // Refresh button
+                        Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              _refreshCourts();
+                            },
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                            splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                            highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.refresh_rounded,
-                            color: Color(0xFF3B82F6),
-                            size: 24,
+                              child: const Icon(
+                                Icons.refresh_rounded,
+                                color: Color(0xFF3B82F6),
+                                size: 24,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        // Custom location button
+                        Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              _goToUserLocation();
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                            highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.my_location_rounded,
+                                color: Color(0xFF3B82F6),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Satellite toggle button
+                        Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _isSatelliteView = !_isSatelliteView;
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                            highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: _isSatelliteView 
+                                    ? const Color(0xFF3B82F6).withValues(alpha: 0.9)
+                                    : Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.satellite_alt_rounded,
+                                color: _isSatelliteView ? Colors.white : const Color(0xFF3B82F6),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
     );
+  }
+
+  void _goToUserLocation() {
+    if (_mapController != null && _userLocation != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: _userLocation!,
+            zoom: 15,
+          ),
+        ),
+      );
+    }
   }
 }
 
