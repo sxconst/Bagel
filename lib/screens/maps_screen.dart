@@ -684,6 +684,8 @@ class _MapsScreenState extends State<MapsScreen> {
                   },
                   myLocationEnabled: true,
                   myLocationButtonEnabled: true,
+                  mapToolbarEnabled: false,
+                  zoomControlsEnabled: true,
                   style: '''
                     [
                       {

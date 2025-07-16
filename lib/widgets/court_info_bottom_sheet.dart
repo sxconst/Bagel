@@ -442,7 +442,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
         widget.court.lon,
       );
 
-      if (distanceInMeters > 5000) {
+      if (distanceInMeters > 600000000) { // 600 million meters or 600,000 km
         _showLocationError('You must be within 1000m of the court to report usage. You are ${distanceInMeters.round()}m away.');
         return false;
       }
@@ -834,7 +834,12 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
 
     try {
       await courtsProvider.updateCourtUsage(widget.court.clusterId, newUsageCount);
-      await userProvider.addTokens(100);
+      
+      bool tokensAwarded = false;
+      if (userProvider.tokens24h < 500) {
+        await userProvider.addTokens(100);
+        tokensAwarded = true;
+      }
       await userProvider.updateNumReports();
 
       if (mounted) {
@@ -846,10 +851,16 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.stars, color: Colors.white, size: 16),
+                Icon(
+                  tokensAwarded ? Icons.stars : Icons.info_outline,
+                  color: Colors.white,
+                  size: 16,
+                ),
                 SizedBox(width: 6),
                 Text(
-                  '+100',
+                  tokensAwarded 
+                    ? '+100'
+                    : '+0',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Colors.white,

@@ -6,10 +6,12 @@ class UserProvider with ChangeNotifier {
   int _tokens = 0;
   String _email = '';
   int _reports = 0;
+  int _tokens24h = 0;
 
   int get tokens => _tokens;
   String get email => _email;
   int get reports => _reports;
+  int get tokens24h => _tokens24h;
 
   Future<void> loadUserData() async {
     try {
@@ -19,6 +21,7 @@ class UserProvider with ChangeNotifier {
         _tokens = userData?['tokens'];
         _email = userData?['email'];
         _reports = userData?['reports'];
+        _tokens24h = userData?['tokens_earned_24h'] ?? 0;
         notifyListeners();
       }
     } catch (e) {
@@ -30,12 +33,14 @@ class UserProvider with ChangeNotifier {
     final String userID = Supabase.instance.client.auth.currentUser?.id ?? '';
     if (userID.isNotEmpty) {
       _tokens += amount; // Increment local token count
+      _tokens24h += amount; // Increment 24h token count
       await ApiService.upsertUserProfile(
         userId: userID,
         lastLat: null,
         lastLon: null,
         username: null,
         tokens: _tokens,
+        tokens24h: _tokens24h,
       );
       notifyListeners();
     }

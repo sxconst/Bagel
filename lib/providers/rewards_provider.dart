@@ -57,7 +57,7 @@ class RewardsProvider with ChangeNotifier {
     try {
       for (final raffle in raffles) {
         if (raffle.status == false) {
-          final userData = await ApiService.fetchUserProfile(raffle.winner);
+          final userData = await ApiService.fetchUsername(raffle.winner);
           _prevWinner = userData?['username'];
         }
       }

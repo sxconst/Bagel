@@ -195,8 +195,8 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
         SnackBar(
           content: Text(
             selectedEntries == 1 
-                ? 'Successfully entered raffle!' 
-                : 'Successfully entered raffle with $selectedEntries entries!',
+                ? 'Submitted 1 entry!' 
+                : 'Submitted $selectedEntries entries!',
           ),
           backgroundColor: Color(0xFF007AFF),
         ),
@@ -623,26 +623,7 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
           const SizedBox(height: 16),
           
           if (countdownDuration != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                _buildTimerUnit(countdownDuration!.inDays.toString().padLeft(2, '0'), 'DAYS'),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    ':',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1976D2),
-                    ),
-                  ),
-                ),
-                _buildTimerUnit((countdownDuration!.inHours % 24).toString().padLeft(2, '0'), 'HRS'),
-              ],
-            )
+            _buildDynamicTimer()
           else
             // Fallback to hardcoded values if countdown is not available
             Row(
@@ -663,10 +644,63 @@ class _RewardsScreenState extends State<RewardsScreen> with TickerProviderStateM
                   ),
                 ),
                 _buildTimerUnit('--', 'HRS'),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    ':',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                ),
+                _buildTimerUnit('--', 'MIN'),
               ],
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDynamicTimer() {
+    final duration = countdownDuration!;
+    
+    final days = duration.inDays;
+    final hours = duration.inHours % 24;
+    final minutes = duration.inMinutes % 60;
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        _buildTimerUnit(days.toString().padLeft(2, '0'), 'DAYS'),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            ':',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1976D2),
+            ),
+          ),
+        ),
+        _buildTimerUnit(hours.toString().padLeft(2, '0'), 'HRS'),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            ':',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1976D2),
+            ),
+          ),
+        ),
+        _buildTimerUnit(minutes.toString().padLeft(2, '0'), 'MIN'),
+      ],
     );
   }
 

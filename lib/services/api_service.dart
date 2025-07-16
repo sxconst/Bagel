@@ -358,6 +358,7 @@ class ApiService {
     double? lastLon,
     String? username,
     int? tokens,
+    int? tokens24h,
     int? reports,
     int? courtDetailsUpdated,
   }) async {
@@ -369,6 +370,7 @@ class ApiService {
       if (lastLon != null) updates['last_lon'] = lastLon;
       if (username != null) updates['username'] = username;
       if (tokens != null) updates['tokens'] = tokens;
+      if (tokens24h != null) updates['tokens_earned_24h'] = tokens24h;
       if (reports != null) updates['reports'] = reports;
       if (courtDetailsUpdated != null) {
         updates['court_details_updated'] = courtDetailsUpdated;
@@ -396,6 +398,20 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>?> fetchUsername(String userId) async {
+    try {
+      final result = await _supabase
+          .from(profilesTable)
+          .select('username')
+          .eq('id', userId)
+          .single();
+      return result as Map<String, dynamic>?;
+    } catch (error) {
+      debugPrint('Error fetching username for $userId: $error');
+      return null;
+    }
+  }
+  
   /// Updates court usage information
   static Future<void> updateCourtDetails({
     required String courtId,
