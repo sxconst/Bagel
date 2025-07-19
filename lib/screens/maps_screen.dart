@@ -720,21 +720,21 @@ class _MapsScreenState extends State<MapsScreen> {
                         // Refresh button
                         Material(
                           color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           child: InkWell(
                             onTap: () {
                               HapticFeedback.lightImpact();
                               _refreshCourts();
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                             highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
                             child: Container(
-                              width: 48,
-                              height: 48,
+                              width: 58,
+                              height: 58,
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: Colors.white.withValues(alpha: 0.3),
                                   width: 1,
@@ -750,7 +750,7 @@ class _MapsScreenState extends State<MapsScreen> {
                               child: const Icon(
                                 Icons.refresh_rounded,
                                 color: Color(0xFF3B82F6),
-                                size: 24,
+                                size: 29,
                               ),
                             ),
                           ),
@@ -759,21 +759,21 @@ class _MapsScreenState extends State<MapsScreen> {
                         // Custom location button
                         Material(
                           color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           child: InkWell(
                             onTap: () {
                               HapticFeedback.lightImpact();
                               _goToUserLocation();
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                             highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
                             child: Container(
-                              width: 48,
-                              height: 48,
+                              width: 58,
+                              height: 58,
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: Colors.white.withValues(alpha: 0.3),
                                   width: 1,
@@ -789,7 +789,7 @@ class _MapsScreenState extends State<MapsScreen> {
                               child: const Icon(
                                 Icons.my_location_rounded,
                                 color: Color(0xFF3B82F6),
-                                size: 24,
+                                size: 29,
                               ),
                             ),
                           ),
@@ -798,7 +798,7 @@ class _MapsScreenState extends State<MapsScreen> {
                         // Satellite toggle button
                         Material(
                           color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           child: InkWell(
                             onTap: () {
                               HapticFeedback.lightImpact();
@@ -806,17 +806,17 @@ class _MapsScreenState extends State<MapsScreen> {
                                 _isSatelliteView = !_isSatelliteView;
                               });
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                             highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
                             child: Container(
-                              width: 48,
-                              height: 48,
+                              width: 58,
+                              height: 58,
                               decoration: BoxDecoration(
                                 color: _isSatelliteView 
                                     ? const Color(0xFF3B82F6).withValues(alpha: 0.9)
                                     : Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: Colors.white.withValues(alpha: 0.3),
                                   width: 1,
@@ -830,9 +830,9 @@ class _MapsScreenState extends State<MapsScreen> {
                                 ],
                               ),
                               child: Icon(
-                                Icons.satellite_alt_rounded,
+                                Icons.layers_rounded, // Changed from satellite_alt_rounded to layers_rounded
                                 color: _isSatelliteView ? Colors.white : const Color(0xFF3B82F6),
-                                size: 24,
+                                size: 29,
                               ),
                             ),
                           ),

@@ -885,35 +885,41 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         bottom: MediaQuery.of(context).size.height * 0.11,
-        left: MediaQuery.of(context).size.width * 0.4,
-        right: MediaQuery.of(context).size.width * 0.4,
+        left: 0,
+        right: 0,
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF007AFF),
-              borderRadius: BorderRadius.circular(36),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.stars,
-                  color: Colors.white,
-                  size: 24,
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF007AFF),
+                borderRadius: BorderRadius.circular(36),
+              ),
+              child: IntrinsicWidth(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ...[
+                      Icon(
+                        Icons.stars,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                    ],
+                    Text(
+                      tokensAwarded ? '+100' : '+0 | Daily token limit reached',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 6),
-                Text(
-                  tokensAwarded ? '+100' : '+0',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

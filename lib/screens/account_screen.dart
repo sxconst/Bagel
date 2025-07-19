@@ -464,6 +464,7 @@ class _AccountScreenState extends State<AccountScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
                 Provider.of<AuthProvider>(context, listen: false).signOut();
+                Navigator.of(context).pop();
               },
               child: const Text(
                 'Sign Out',

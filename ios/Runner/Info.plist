@@ -57,5 +57,7 @@
 	<string>This app needs location access to show tennis courts near you.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs location access to show tennis courts near you.</string>
+	<key>GMSApiKey</key>
+    <string>AIzaSyBtoJnZDmCQhcPMTW85Pc8gTnSilVJyr2Q</string>
 </dict>
 </plist>
