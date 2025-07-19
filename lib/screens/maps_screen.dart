@@ -686,7 +686,7 @@ class _MapsScreenState extends State<MapsScreen> {
                   myLocationEnabled: true,
                   myLocationButtonEnabled: false,
                   mapToolbarEnabled: false,
-                  zoomControlsEnabled: true,
+                  zoomControlsEnabled: false,
                   mapType: _isSatelliteView ? MapType.hybrid : MapType.normal,
                   style: '''
                     [
