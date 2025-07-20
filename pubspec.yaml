@@ -60,6 +60,8 @@ dependencies:
 
   # For secrets 🤫
   flutter_dotenv: ^5.0.2
+  
+  app_settings: ^4.0.0
 
 dev_dependencies:
   flutter_test:

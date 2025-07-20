@@ -884,7 +884,7 @@ class _CourtInfoBottomSheetState extends State<CourtInfoBottomSheet> with Ticker
     
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        bottom: MediaQuery.of(context).size.height * 0.11,
+        bottom: MediaQuery.of(context).size.height * 0.12,
         left: 0,
         right: 0,
         child: Material(

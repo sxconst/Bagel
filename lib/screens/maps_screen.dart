@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'dart:async';
+import 'package:app_settings/app_settings.dart';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -45,8 +46,8 @@ class _MapsScreenState extends State<MapsScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeLocation();
     _initializeUser();
+    _initializeLocation();
   }
 
   @override
@@ -114,13 +115,50 @@ class _MapsScreenState extends State<MapsScreen> {
         }
 
       LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied || 
-          permission == LocationPermission.deniedForever) {
-        debugPrint('Location permissions are denied.');
-        setState(() {
-          _userLocation = fallbackLocation;
-        });
-        return;
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        
+        // Check if the permission was granted
+        if (permission == LocationPermission.denied) {
+            debugPrint('Location permissions are denied.');
+            _userLocation = fallbackLocation;
+            return;
+        }
+      }
+      
+      void _showPermissionDeniedDialog() {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Location Permission Denied'),
+                content: Text(
+                    'Location permissions are permanently denied. Please go to your device settings and enable location access for this app.'),
+                actions: <Widget>[
+                  TextButton(
+                    child: Text('Open Settings'),
+                    onPressed: () {
+                      // Open app settings
+                      openAppSettings();
+                    },
+                  ),
+                  TextButton(
+                    child: Text('Cancel'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+          // Location permissions are permanently denied
+          debugPrint('Location permissions are permanently denied.');
+          _showPermissionDeniedDialog(); // Optional: Show a dialog to instruct users to go to settings
+          return;
       }
 
       Position position = await Geolocator.getCurrentPosition(
